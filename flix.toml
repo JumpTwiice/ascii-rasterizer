@@ -1,0 +1,6 @@
+[package]
+name        = "ascii-rasterizer"
+description = "A rasterizer that can render 3D objects in ascii graphics."
+version     = "0.1.0"
+flix        = "0.62.0"
+authors     = ["adamtal@hotmail.com"]
