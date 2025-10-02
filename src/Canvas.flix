@@ -1,106 +1,97 @@
 struct Canvas[r: Region] {
     width: Int32,
     height: Int32,
-    mut image: Array[Array[Char, r], r],
+    mut raster: Canvas.Raster[r],
     rc: Region[r]
 }
 
 mod Canvas {
+    @Internal
+    pub type alias Raster[r: Region] = Array[Array[Int32, r], r]
 
     pub def empty(rc: Region[r], w: Int32, h: Int32): Canvas[r] \ r =
-        new Canvas @ rc { width = w, height = h, image = mkImage(rc, w, h), rc = rc }
+        new Canvas @ rc { width = w, height = h, raster = mkRaster(rc, w, h), rc = rc }
 
-    pub def flush(c: Canvas[r]): Unit \ r =
-        c->image = mkImage(c->rc, c->width, c->height)
+    pub def display(c: Canvas[r]): Unit \ Console + r = 
+        toString(c) |> Console.println
 
-    pub def shrink(rc: Region[r0], c: Canvas[r1]): Canvas[r0] \ r0 + r1 =
-        let height = c->height / 2;
-        let image = mkImage(rc, c->width, height);
+    pub def flush(c: Canvas[r]): Unit \ r = c->raster = mkRaster(c->rc, c->width, c->height)
+
+    pub def toString(c: Canvas[r]): String \ r =
+        ("", shrinkRaster(c)) ||>
+            Array.foldLeft(acc -> row -> {
+                let rowString = Array.joinWith(brightnessToChar >> ToString.toString, "", row); 
+                acc + "\n" + rowString
+            })
+
+    def mkRaster(rc: Region[r], w: Int32, h: Int32): Raster[r] \ r = 
+        Array.init(rc, _ -> Array.repeat(rc, w, 0), h)
+    
+    def brightnessToChar(value: Int32): Char = Vector.get(value, Options.colors())
+
+    def shrinkRaster(c: Canvas[r]): Raster[r] \ r =
+        let shrinkedRaster = mkRaster(c->rc, c->width, c->height / 2);
         def setShrinkedPixel(i, j) = {
-            let top = Array.get(i, c->image) |> Array.get(j);
-            let bot = Array.get(i + 1, c->image) |> Array.get(j);
-            let dstRow = Array.get(i / 2, image);
-            match (top, bot) {
-                case ('*', ' ') => Array.put('\'', j, dstRow)
-                case ('*', '*') => Array.put('*', j, dstRow)
-                case (' ', '*') => Array.put('.', j, dstRow)
-                case (' ', ' ') => Array.put(' ', j, dstRow)
-                case _ => ???
-            }
+            let top = getPixel(i, j, c->raster);
+            let bot = getPixel(i + 1, j, c->raster);
+            let avg = (top + bot) / 2;
+            drawPixel(i / 2, j, avg, shrinkedRaster)
         };
         foreach (i <- Range.Range(0, c->height - 1))
             foreach (j <- Range.Range(0, c->width - 1)) 
                 setShrinkedPixel(i, j);
-        new Canvas @ rc { width = c->width, height = height, image = image, rc = rc }
+        shrinkedRaster
 
-    def mkImage(rc: Region[r], w: Int32, h: Int32): Array[Array[Char, r], r] \ r = 
-        Array.init(rc, _ -> Array.repeat(rc, w, ' '), h)
-
-    pub def toString(c: Canvas[r]): String \ r =
-        Array.foldLeft(acc -> row -> acc + "\n" + Array.join("", row),"", c->image)
-
-    pub def drawTriangle(x0: Int32, y0: Int32, x1: Int32, y1: Int32, x2: Int32, y2: Int32, c: Canvas[r]): Unit \ r = {
-        drawLine(x0, y0, x1, y1, c);
-        drawLine(x1, y1, x2, y2, c);
-        drawLine(x2, y2, x0, y0, c)
+    pub def drawTriangle(x0: Int32, y0: Int32, x1: Int32, y1: Int32, x2: Int32, y2: Int32, brightness: Int32, c: Canvas[r]): Unit \ r = {
+        drawLine(x0, y0, x1, y1, brightness, c);
+        drawLine(x1, y1, x2, y2, brightness, c);
+        drawLine(x2, y2, x0, y0, brightness, c)
     }
 
-    pub def drawLine(x0: Int32, y0: Int32, x1: Int32, y1: Int32, c: Canvas[r]): Unit \ r = {
-        if (Int32.abs(y1 - y0) < Int32.abs(x1 - x0)) {
-            if (x0 > x1) 
-                drawLineLow(x1, y1, x0, y0, c)
+    pub def drawLine(x0: Int32, y0: Int32, x1: Int32, y1: Int32, brightness: Int32, c: Canvas[r]): Unit \ r = {
+        let isSteep = Int32.abs(y1 - y0) > Int32.abs(x1- x0);
+
+        let (ax0, ay0, ax1, ay1) = if (isSteep) (y0, x0, y1, x1) else (x0, y0, x1, y1);
+        let (sx0, sy0, sx1, sy1) = if (ax0 > ax1) (ax1, ay1, ax0, ay0) else (ax0, ay0, ax1, ay1);
+
+        let ys = interpolate(sx0, sy0, sx1, sy1);
+
+        foreach (x <- Range.Range(sx0, sx1 + 1)) {
+            let y = Vector.get(x - sx0, ys);
+            if (isSteep) 
+                drawPoint(y, x, brightness, c)
             else
-                drawLineLow(x0, y0, x1, y1, c)
-        } else {
-            if (y0 > y1) 
-                drawLineHigh(x1, y1, x0, y0, c)
-            else
-                drawLineHigh(x0, y0, x1, y1, c)
+                drawPoint(x, y, brightness, c)
         }
     }
 
-    pub def fill(x: Int32, y: Int32, char: Char, c: Canvas[r]): Unit \ r = {
+    pub def drawPoint(x: Int32, y: Int32, brightness: Int32, c: Canvas[r]): Unit \ r = {
         let xBounded = 0 < x and x < c->width;
         let yBounded = 0 < y and y < c->height;
         if (xBounded and yBounded) 
-            Array.get(y, c->image) |> Array.put(char, x)
+            drawPixel(y, x, brightness, c->raster)
         else ()
     }
 
-    def drawLineHigh(x0: Int32, y0: Int32, x1: Int32, y1: Int32, c: Canvas[r]): Unit \ r = {
-        let (dx, dy, xi) = {
-            let dx = x1 - x0;
-            let dy = y1 - y0;
-            if (dx < 0) (-dx, dy, -1) else (dx, dy, 1)
-        };
-        def f(x, y, d) = {
-            if (y <= y1) {
-                fill(x, y, '*', c);
-                if (d > 0) 
-                    f(x + xi, y + 1, d + 2 * (dx - dy))
-                else 
-                    f(x, y + 1, d + 2 * dx)
-            } else ()
-        };
-        f(x0, y0, 2 * dx - dy)
+    pub def interpolate(i0: Int32, d0: Int32, i1: Int32, d1: Int32): Vector[Int32] = {
+        if (i0 == i1) {
+            Vector#{d0}
+        } else {
+            let a = (Int32.toFloat64(d1) - Int32.toFloat64(d0)) / (Int32.toFloat64(i1) - Int32.toFloat64(i0));
+            def loop(i, d) = {
+                if (i <= i1) match Float64.tryToInt32(d) {
+                    case Some(v) => v :: loop(i + 1, d + a)
+                    case None => unreachable!()
+                } else Nil
+            };
+            loop(i0, Int32.toFloat64(d0)) |> List.toVector
+        }
     }
 
-    def drawLineLow(x0: Int32, y0: Int32, x1: Int32, y1: Int32, c: Canvas[r]): Unit \ r = {
-        let (dx, dy, yi) = {
-            let dx = x1 - x0;
-            let dy = y1 - y0;
-            if (dy < 0) (dx, -dy, -1) else (dx, dy, 1)
-        };
-        def f(x, y, d) = {
-            if (x <= x1) {
-                fill(x, y, '*', c);
-                if (d > 0) 
-                    f(x + 1, y + yi, d + 2 * (dy - dx))
-                else 
-                    f(x + 1, y, d + 2 * dy)
-            } else ()
-        };
-        f(x0, y0, 2 * dy - dx)
-    }
+    def getPixel(i: Int32, j: Int32, raster: Raster[r]): Int32 \ r = 
+        Array.get(i, raster) |> Array.get(j)
+
+    def drawPixel(i: Int32, j: Int32, b: Int32, raster: Raster[r]): Unit \ r = 
+        Array.get(i, raster) |> Array.put(b, j)
 
 }

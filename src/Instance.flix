@@ -15,7 +15,7 @@ mod Instance {
                 let (x0, y0) = Vector.get(p1, projected) |> Vertex2D.toPixelCoord;
                 let (x1, y1) = Vector.get(p2, projected) |> Vertex2D.toPixelCoord;
                 let (x2, y2) = Vector.get(p3, projected) |> Vertex2D.toPixelCoord;
-                Canvas.drawTriangle(x0, y0, x1, y1, x2, y2, c) 
+                Canvas.drawTriangle(x0, y0, x1, y1, x2, y2, 5, c) 
             }
     }
 
