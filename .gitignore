@@ -1,2 +1,4 @@
 lib/
 crash_report_*
+build/
+artifact/
