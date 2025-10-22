@@ -5,5 +5,9 @@ mod Math {
 
     pub def cos(x: Float64): Float64 = unchecked_cast(Math.cos(x) as _ \ {})
 
+    pub def tan(x: Float64): Float64 = unchecked_cast(Math.tan(x) as _ \ {})
+
+    pub def sqrt(x: Float64): Float64 = unchecked_cast(Math.sqrt(x) as _ \ {})
     pub def pi(): Float64 = 3.14159265
+
 }

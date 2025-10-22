@@ -1,23 +1,33 @@
 import java.awt.MouseInfo
 import java.awt.Robot;
 import java.lang.System;
+use Math.Mat4x4
+use Math.Vec3.Vec3
 
-def main(): Unit \ IO = region rc {
+def rotatingCube(): Unit \ IO = region rc {
     run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
         let cubeModel = Model.cube();
-        let cubeTransform = Transform.transform(rc, scale=1.5, rotation=(0.0, 0.0, 0.0), translation=(0.0, 0.0, 10.0));
-        let cubeInstance = Instance.fromModelAndTransform(rc, cubeModel, cubeTransform);
+        let cubeInstance = Instance.fromModel(
+            rc, cubeModel, 
+            position = Vec3(0.0, 0.0, 6.0),
+            rotation = Vec3(0.0, 0.0, 0.0),
+            scale = Vec3(1.0, 1.0, 1.0)
+        );
+        let camera = Camera.create(
+            rc, 
+            position = Vec3(0.0, 0.0, 0.0),
+            rotation = Vec3(0.0, 0.0, 0.0)
+        );
 
         def loop(t0: Int64): Unit = {
             let t1 = Clock.now();
-            if (t1 - t0 >= 100i64) {
-                cubeTransform
-                    !> Transform.rotate(0.05, Axis.X)
-                    !> Transform.rotate(0.05, Axis.Y)
-                    !> Transform.rotate(0.05, Axis.Z);
-                Instance.render(canvas, cubeInstance);
+            if (t1 - t0 >= 200i64) {
+                Instance.rotateX(0.1, cubeInstance);
+                Instance.rotateY(0.1, cubeInstance);
+                Instance.rotateZ(0.1, cubeInstance);
+                Instance.render(canvas, camera, cubeInstance);
                 Canvas.display(canvas);
                 Canvas.flush(canvas);
                 loop(t1)
@@ -28,29 +38,69 @@ def main(): Unit \ IO = region rc {
     with Clock.runWithIO
 }
 
-def main3(): Unit \ IO = region rc {
+def cubeStatic(): Unit \ IO = region rc {
     run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
         let cubeModel = Model.cube();
-        let cubeTransform = Transform.transform(rc, scale=1.5, rotation=(45.0, 45.0, 45.0), translation=(0.0, 0.0, 10.0));
-        let cubeInstance = Instance.fromModelAndTransform(rc, cubeModel, cubeTransform);
-        Instance.render(canvas, cubeInstance);
+        let cubeInstance = Instance.fromModel(
+            rc, cubeModel, 
+            position = Vec3(0.0, 0.0, 6.0),
+            rotation = Vec3(0.0, 0.0, 0.0),
+            scale = Vec3(1.0, 1.0, 1.0)
+        );
+        let camera = Camera.create(
+            rc, 
+            position = Vec3(0.0, 0.0, 0.0),
+            rotation = Vec3(0.0, 0.0, 0.0)
+        );
+        Instance.render(canvas, camera, cubeInstance);
         Canvas.display(canvas)
 
     } with Console.runWithIO
 }
 
-def main4(): Unit \ IO = region rc {
+def pyramid(): Unit \ IO = region rc {
     run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
-        Canvas.drawFilledTriangle(0, 0, 128, 0, 64, 64, (0, 0, 100), canvas);
+        let cubeModel = Model.pyramid();
+        let cubeInstance = Instance.fromModel(
+            rc, cubeModel, 
+            position = Vec3(0.0, 1.0, 6.0),
+            rotation = Vec3(Math.pi(), Math.pi() / 2.0, 0.0),
+            scale = Vec3(1.0, 2.2, 1.0)
+        );
+        let camera = Camera.create(
+            rc, 
+            position = Vec3(0.0, 0.0, 0.0),
+            rotation = Vec3(0.0, 0.0, 0.0)
+        );
+        Instance.render(canvas, camera, cubeInstance);
+        Canvas.display(canvas)
+
+    } with Console.runWithIO
+}
+
+def triangle(): Unit \ IO = region rc {
+    run {
+        let (w, h) = Options.dimensions();
+        let canvas = Canvas.empty(rc, w, h);
+        Canvas.drawShadedTriangle(128, 0, 0, 0, 64, 64, 50, 5, 20, (0, 255, 255), canvas);
         Canvas.display(canvas)
     } with Console.runWithIO
 }
 
-def main5(): Unit \ IO = {
+def line(): Unit \ IO = region rc{
+    run {
+        let (w, h) = Options.dimensions();
+        let canvas = Canvas.empty(rc, w, h);
+        Canvas.drawLine(0, 0, 127, 64, (255, 255, 255), canvas);
+        Canvas.display(canvas)
+    } with Console.runWithIO
+}
+
+def mousePos(): Unit \ IO = {
     def loop() = {
         let pointer = MouseInfo.getPointerInfo();
         let pos = pointer.getLocation();
@@ -60,13 +110,22 @@ def main5(): Unit \ IO = {
     loop()
 }
 
-def main22(): Unit \ IO = region rc {
+def main2(): Unit \ IO = region rc {
     run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
         let cubeModel = Model.cube();
-        let cubeTransform = Transform.transform(rc, scale=1.5, rotation=(0.0, 0.0, 0.0), translation=(0.0, 0.0, 10.0));
-        let cubeInstance = Instance.fromModelAndTransform(rc, cubeModel, cubeTransform);
+        let cubeInstance = Instance.fromModel(
+            rc, cubeModel, 
+            position = Vec3(0.0, 0.0, 6.0),
+            rotation = Vec3(0.0, 0.0, 0.0),
+            scale = Vec3(1.0, 1.0, 1.0)
+        );
+        let camera = Camera.create(
+            rc, 
+            position = Vec3(0.0, 0.0, 0.0),
+            rotation = Vec3(0.0, 0.0, 0.0)
+        );
 
         let dt = 50i64;
 
@@ -78,12 +137,13 @@ def main22(): Unit \ IO = region rc {
                 let oldPos = oldPointer.getLocation();
                 let dx = Int32.toFloat64(oldPos.x - pos.x) / 100.0;
                 let dy = Int32.toFloat64(oldPos.y - pos.y) / 100.0;
-                cubeTransform
-                    !> Transform.rotate(dy, Axis.X)
-                    !> Transform.rotate(dx, Axis.Y);
-                Instance.render(canvas, cubeInstance);
-                Canvas.display(canvas);
-                Canvas.flush(canvas);
+                if (dx != 0.0 or dy != 0.0) {
+                    Instance.rotateX(dx, cubeInstance);
+                    Instance.rotateY(dy, cubeInstance);
+                    Instance.render(canvas, camera, cubeInstance);
+                    Canvas.display(canvas);
+                    Canvas.flush(canvas)
+                } else ();
                 loop(pointer, t1)
             } else loop(oldPointer, t0)
         };
@@ -91,7 +151,3 @@ def main22(): Unit \ IO = region rc {
     } with Console.runWithIO
     with Clock.runWithIO
 }
-
-def main222(): Unit \ IO =
-    let x = RichString.bgBlack("▄") |> RichString.toAnsiString;
-    println(x)
