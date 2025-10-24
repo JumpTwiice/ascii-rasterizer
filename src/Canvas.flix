@@ -16,7 +16,7 @@ mod Canvas {
         new Canvas @ rc { width = w, height = h, raster = mkBuffer(rc, w, h), zBuffer = mkBuffer(rc, w, h), rc = rc }
 
     pub def display(c: Canvas[r]): Unit \ Console + r = 
-        _getTerminalFrameSimple(c) |> Console.println
+        getASCIITerminalFrame(c) |> Console.println
 
     pub def flush(c: Canvas[r]): Unit \ r = c->raster = mkBuffer(c->rc, c->width, c->height)
 
@@ -84,6 +84,37 @@ mod Canvas {
                 }, width);
 
             Array.put(Vector.join("", rowVec), i2, frameRows)
+        };
+
+        Array.join("\n", frameRows)
+    }
+
+    def getASCIITerminalFrame(c: Canvas[r]): String \ r = region rc {
+        let width = c->width;
+        let height = c->height / 2;
+        let frameRows = Array.empty(rc, height);
+
+        foreach (i <- Range.Range(0, height)) {
+            let rowVec =
+                Vector.init(j -> {
+                    let top = getPixel(i * 2, j, c->raster);
+                    let bot = getPixel(i * 2 + 1, j, c->raster);
+                    let avg = (top + bot) / 2;
+                    let (r, g, b) = unpackRGB(avg);
+                    let gray = (0.299 * Int32.toFloat64(r)) + (0.587 * Int32.toFloat64(g)) + (0.114 * Int32.toFloat64(b));
+                    if (0.0 < gray and gray <= 25.5) "."  
+                    else if (0.0 < gray and gray <= 51.0) ";"  
+                    else if (0.0 < gray and gray <= 76.5) "-"  
+                    else if (0.0 < gray and gray <= 102.0) "="  
+                    else if (0.0 < gray and gray <= 127.5) "+"  
+                    else if (0.0 < gray and gray <= 153.0) "*"  
+                    else if (0.0 < gray and gray <= 178.5) "#"  
+                    else if (0.0 < gray and gray <= 204.0) "%"  
+                    else if (0.0 < gray and gray <= 255.0) "@"
+                    else " "
+                }, width);
+
+            Array.put(Vector.join("", rowVec), i, frameRows)
         };
 
         Array.join("\n", frameRows)

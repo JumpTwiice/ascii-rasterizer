@@ -123,7 +123,7 @@ def main2(): Unit \ IO = region rc {
         );
         let cube2 = Instance.fromModel(
             rc, cubeModel, 
-            position = Vec3(4.0, 0.0, 6.0),
+            position = Vec3(6.0, 0.0, 0.0),
             rotation = Vec3(1.0, 2.0, 3.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
