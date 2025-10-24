@@ -1,6 +1,6 @@
 struct Camera[r: Region] {
-    position: Math.Vec3,
-    rotation: Math.Vec3
+    mut position: Math.Vec3,
+    mut rotation: Math.Vec3
 }
 
 mod Camera {
@@ -15,7 +15,19 @@ mod Camera {
         rotation = r#rotation
     }
 
-    pub def viewMatrix(c: Camera[r]): Mat4x4 =
+    pub def translate(translation: Vec3, c: Camera[r]): Unit \ r = 
+        c->position = c->position + translation
+
+    pub def rotateX(angle: Float64, c: Camera[r]): Unit \ r = 
+        c->rotation = c->rotation + Vec3.Vec3(angle, 0.0, 0.0)
+
+    pub def rotateY(angle: Float64, c: Camera[r]): Unit \ r = 
+        c->rotation = c->rotation + Vec3.Vec3(0.0, angle, 0.0)
+    
+    pub def rotateZ(angle: Float64, c: Camera[r]): Unit \ r = 
+        c->rotation = c->rotation + Vec3.Vec3(0.0, 0.0, angle)
+
+    pub def viewMatrix(c: Camera[r]): Mat4x4 \ r =
         let Vec3.Vec3(rx, ry, rz) = c->rotation;
         let Vec3.Vec3(px, py, pz) = c->position;
 

@@ -24,7 +24,7 @@ mod Instance {
         position = t#position 
     } 
 
-    pub def render(canvas: Canvas[r0], camera: Camera[_], i: Instance[r1]): Unit \ r0 + r1 = match i->model {
+    pub def render(canvas: Canvas[r0], camera: Camera[r1], i: Instance[r2]): Unit \ r0 + r1 + r2 = match i->model {
         case Model.Model(_, vertices, triangles) => 
             let Vec3.Vec3(s1, s2, s3) = i->scale;
             let Vec3.Vec3(r1, r2, r3) = i->rotation;

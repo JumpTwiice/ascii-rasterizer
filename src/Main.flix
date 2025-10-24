@@ -115,12 +115,19 @@ def main2(): Unit \ IO = region rc {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
         let cubeModel = Model.cube();
-        let cubeInstance = Instance.fromModel(
+        let cube1 = Instance.fromModel(
             rc, cubeModel, 
             position = Vec3(0.0, 0.0, 6.0),
-            rotation = Vec3(0.0, 0.0, 0.0),
+            rotation = Vec3(3.0, 2.0, 1.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
+        let cube2 = Instance.fromModel(
+            rc, cubeModel, 
+            position = Vec3(4.0, 0.0, 6.0),
+            rotation = Vec3(1.0, 2.0, 3.0),
+            scale = Vec3(1.0, 1.0, 1.0)
+        );
+        let instances = cube1 :: cube2 :: Nil;
         let camera = Camera.create(
             rc, 
             position = Vec3(0.0, 0.0, 0.0),
@@ -135,12 +142,12 @@ def main2(): Unit \ IO = region rc {
                 let pointer = MouseInfo.getPointerInfo();
                 let pos = pointer.getLocation();
                 let oldPos = oldPointer.getLocation();
-                let dx = Int32.toFloat64(oldPos.x - pos.x) / 100.0;
-                let dy = Int32.toFloat64(oldPos.y - pos.y) / 100.0;
+                let dx = Int32.toFloat64(oldPos.x - pos.x) / 500.0;
+                let dy = Int32.toFloat64(oldPos.y - pos.y) / 500.0;
                 if (dx != 0.0 or dy != 0.0) {
-                    Instance.rotateX(dx, cubeInstance);
-                    Instance.rotateY(dy, cubeInstance);
-                    Instance.render(canvas, camera, cubeInstance);
+                    Camera.rotateY(dx, camera);
+                    Camera.rotateX(-dy, camera);
+                    renderInstances(canvas, camera, instances);
                     Canvas.display(canvas);
                     Canvas.flush(canvas)
                 } else ();
@@ -150,4 +157,9 @@ def main2(): Unit \ IO = region rc {
         loop(MouseInfo.getPointerInfo(), 0i64)
     } with Console.runWithIO
     with Clock.runWithIO
+}
+
+def renderInstances(canvas: Canvas[r0], camera: Camera[r1], instances: List[Instance[r2]]): Unit \ r0 + r1 + r2 = {
+    foreach (i <- instances)
+        Instance.render(canvas, camera, i)
 }
