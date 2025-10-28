@@ -6,10 +6,9 @@ struct Instance[r] {
 }
 
 mod Instance {
-    use Math.Mat4x4
-    use Math.Mat3x4
-    use Math.Vec3
-    use Math.Vec4
+    use Math.{Mat4x4, Mat3x4, Vec3, Vec4}
+    use Math.Vec4.Vec4
+    use Math.Vec3.Vec3
 
     pub def fromModel(
         rc: Region[r], 
@@ -26,21 +25,27 @@ mod Instance {
 
     pub def render(canvas: Canvas[r0], camera: Camera[r1], i: Instance[r2]): Unit \ r0 + r1 + r2 = match i->model {
         case Model.Model(_, vertices, triangles) => 
-            let Vec3.Vec3(s1, s2, s3) = i->scale;
-            let Vec3.Vec3(r1, r2, r3) = i->rotation;
-            let Vec3.Vec3(t1, t2, t3) = i->position; 
+            let Vec3(s1, s2, s3) = i->scale;
+            let Vec3(r1, r2, r3) = i->rotation;
+            let Vec3(t1, t2, t3) = i->position; 
             let model = Mat4x4.translation(t1, t2, t3) * Mat4x4.rotationZ(r3) * Mat4x4.rotationY(r2) * Mat4x4.rotationX(r1) * Mat4x4.scale(s1, s2, s3);
 
             let view = Camera.viewMatrix(camera);
 
             let projection = view * model;
 
-            let projected = Vector.map(Vec4.fromVec3 >> Mat4x4.mulVec4(projection) >> projectVertex, vertices);
-            foreach ((p1, p2, p3) <- triangles) {
-                let (x0, y0) = Vector.get(p1, projected) |> toPixelCoord;
-                let (x1, y1) = Vector.get(p2, projected) |> toPixelCoord;
-                let (x2, y2) = Vector.get(p3, projected) |> toPixelCoord;
-                Canvas.drawTriangle(x0, y0, x1, y1, x2, y2, (0, 255, 255), canvas) 
+            let projected = Vector.map(Vec4.fromVec3 >> Mat4x4.mulVec4(projection), vertices);
+            foreach ((p1, p2, p3, color) <- triangles) {
+                let v0 = Vector.get(p1, projected);
+                let v1 = Vector.get(p2, projected);
+                let v2 = Vector.get(p3, projected);
+                let Vec4(_, _, z0, _) = v0;
+                let Vec4(_, _, z1, _) = v1;
+                let Vec4(_, _, z2, _) = v2;
+                let (x0, y0) = projectVertex(v0) |> toPixelCoord;
+                let (x1, y1) = projectVertex(v1) |> toPixelCoord;
+                let (x2, y2) = projectVertex(v2) |> toPixelCoord;
+                Canvas.drawShadedTriangle(x0, y0, x1, y1, x2, y2, 1.0, 1.0, 1.0, z0, z1, z2, color, canvas) 
             }
     }
 
@@ -63,7 +68,7 @@ mod Instance {
         let (cw, ch) = Options.dimensions();
         let (vw, vh) = Options.viewportDimensions();
         let f = Options.focalLength();
-        let Vec3.Vec3(x, y, z) = Mat3x4.mulVec4(viewportToCanvasMatrix(cw, ch, vw, vh, f), v);
+        let Vec3(x, y, z) = Mat3x4.mulVec4(viewportToCanvasMatrix(cw, ch, vw, vh, f), v);
         (x / z + Int32.toFloat64(cw / 2), y / z + Int32.toFloat64(ch / 2))
     }
 

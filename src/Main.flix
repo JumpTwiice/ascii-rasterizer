@@ -8,7 +8,14 @@ def rotatingCube(): Unit \ IO = region rc {
     run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
-        let cubeModel = Model.cube();
+        let cubeModel = Model.cubeWithColor(
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (255, 0, 255),
+            (0, 255, 255),
+            (255, 255, 0)
+        );
         let cubeInstance = Instance.fromModel(
             rc, cubeModel, 
             position = Vec3(0.0, 0.0, 6.0),
@@ -42,7 +49,14 @@ def cubeStatic(): Unit \ IO = region rc {
     run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
-        let cubeModel = Model.cube();
+        let cubeModel = Model.cubeWithColor(
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (255, 0, 255),
+            (0, 255, 255),
+            (255, 255, 0)
+        );
         let cubeInstance = Instance.fromModel(
             rc, cubeModel, 
             position = Vec3(0.0, 0.0, 6.0),
@@ -86,7 +100,7 @@ def triangle(): Unit \ IO = region rc {
     run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
-        Canvas.drawShadedTriangle(128, 0, 0, 0, 64, 64, 50, 5, 20, (0, 255, 255), canvas);
+        Canvas.drawShadedTriangle(128, 0, 0, 0, 64, 64, 0.5, 0.05, 0.2, 0.0, 0.0, 0.0, (0, 255, 255), canvas);
         Canvas.display(canvas)
     } with Console.runWithIO
 }
@@ -114,7 +128,14 @@ def main2(): Unit \ IO = region rc {
     run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
-        let cubeModel = Model.cube();
+        let cubeModel = Model.cubeWithColor(
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (255, 0, 255),
+            (0, 255, 255),
+            (255, 255, 0)
+        );
         let cube1 = Instance.fromModel(
             rc, cubeModel, 
             position = Vec3(0.0, 0.0, 6.0),
