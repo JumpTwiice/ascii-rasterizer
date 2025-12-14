@@ -48,6 +48,7 @@ mod Instance {
                 case None => Vec3.zero()
                 case Some(p) => Mat4x4.mulVec3(view, p)
             };
+            let wireframe = Options.renderWireframe();
 
             foreach ((p1, p2, p3, color) <- triangles) {
                 let a = Vector.get(p1, camVertices);
@@ -68,7 +69,13 @@ mod Instance {
                             let (x0, y0) = projectVertex(camera, Vec4.fromVec3(c0)) |> toPixelCoord;
                             let (x1, y1) = projectVertex(camera, Vec4.fromVec3(c1)) |> toPixelCoord;
                             let (x2, y2) = projectVertex(camera, Vec4.fromVec3(c2)) |> toPixelCoord;
-                            Canvas.drawShadedTriangle(x0, y0, x1, y1, x2, y2, 1.0, 1.0, 1.0, z0, z1, z2, drawColor, canvas) 
+                            if (wireframe) {
+                                Canvas.drawLine(x0, y0, x1, y1, drawColor, canvas);
+                                Canvas.drawLine(x1, y1, x2, y2, drawColor, canvas);
+                                Canvas.drawLine(x2, y2, x0, y0, drawColor, canvas)
+                            } else {
+                                Canvas.drawShadedTriangle(x0, y0, x1, y1, x2, y2, 1.0, 1.0, 1.0, z0, z1, z2, drawColor, canvas) 
+                            }
                         }
                     }
                 }

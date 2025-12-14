@@ -17,4 +17,6 @@ mod Options {
 
     pub def debugBackfaceCullPoint(): Option[Math.Vec3] = None
 
+    pub def renderWireframe(): Bool = false
+
 }

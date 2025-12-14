@@ -72,4 +72,5 @@ mod Model {
             (1, 4, 2, equator), (1, 3, 4, bottom), (1, 5, 3, equator), (1, 2, 5, bottom)
         };
         Model.Model("Octahedron", Vector.map(Math.Vec3.fromTuple, vertices), triangles)
+        
 }
