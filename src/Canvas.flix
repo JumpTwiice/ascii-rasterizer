@@ -17,7 +17,7 @@ mod Canvas {
             width = w, 
             height = h, 
             raster = mkBuffer(rc, w, h, 0), 
-            zBuffer = mkBuffer(rc, w, h, Float64.maxValue()), 
+            zBuffer = mkBuffer(rc, w, h, 0.0), 
             rc = rc 
         }
 
@@ -30,7 +30,7 @@ mod Canvas {
             j <- Range.Range(0, c->width)
         ) {
             Array.get(i, c->raster) |> Array.put(0, j);
-            Array.get(i, c->zBuffer) |> Array.put(Float64.maxValue(), j)
+            Array.get(i, c->zBuffer) |> Array.put(0.0, j)
         }
     }
 
@@ -53,7 +53,7 @@ mod Canvas {
                     RichString.text("▀")
                         |> RichString.withColor(unpackRGBRich(top))
                         |> RichString.withBgColor(unpackRGBRich(bot))
-                        |> RichString.toAnsiString
+                        |> RichString.toString
                 }, width);
 
             Array.put(Vector.join("", rowVec), i2, frameRows)
@@ -179,16 +179,15 @@ mod Canvas {
             let zSeg = interpolateSmooth(xL, zL, xR, zR);
             
             foreach (x <- Range.Range(xL, xR)) {
-                let z = Vector.get(x - xL, zSeg);
+                let z = 1.0 / Vector.get(x - xL, zSeg);
                 let currentZ = getZAtPoint(x, y, c);
-                if (z < currentZ) {
+                if (z > currentZ) {
                     let h = Vector.get(x - xL, hSeg);
                     let f = Float64.clampToInt32(min = 0, max = 255, nanValue = -1);
                     let sh = (f(r * h), f(g * h), f(b * h));
                     drawPoint(x, y, sh, c);
                     putZValue(x, y, z, c)
                 } else ()
-                
             }
     }
 

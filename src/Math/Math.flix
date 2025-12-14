@@ -7,6 +7,8 @@ mod Math {
 
     pub def tan(x: Float64): Float64 = unchecked_cast(Math.tan(x) as _ \ {})
 
+    pub def atan(x: Float64): Float64 = unchecked_cast(Math.atan(x) as _ \ {})
+
     pub def sqrt(x: Float64): Float64 = unchecked_cast(Math.sqrt(x) as _ \ {})
     pub def pi(): Float64 = 3.14159265
 

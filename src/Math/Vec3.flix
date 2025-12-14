@@ -18,8 +18,16 @@ mod Math {
 
     instance Neg[Vec3] {
         pub def neg(x: Vec3): Vec3 = Vec3.neg(x)
-    }
+    }   
 
+    instance SemiGroup[Vec3] {
+        pub def combine(x: Vec3, y: Vec3): Vec3 = x + y
+    }
+    
+    instance Monoid[Vec3] {
+        pub def empty(_unit: Unit): Vec3 = Vec3.zero()
+    }
+    
     instance ToString[Vec3] {
         pub def toString(v: Vec3): String = 
             let Vec3.Vec3(x, y, z) = v;
@@ -66,6 +74,10 @@ mod Math {
             let Vec3(x, y, z) = v;
             Vec3(-x, -y, -z)
 
+        pub def divide(s: Float64, v: Vec3): Vec3 = 
+            let Vec3(x, y, z) = v;
+            Vec3(x / s, y / s, z / s)
+
         pub def length(v: Vec3): Float64 =
             Math.sqrt(dot(v, v))
 
@@ -74,6 +86,7 @@ mod Math {
             if (len == 0.0) v else scale(v, 1.0 / len)
 
         pub def zero(): Vec3 = Vec3(0.0, 0.0, 0.0)
+
     }
 
 }
