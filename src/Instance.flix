@@ -32,7 +32,6 @@ mod Instance {
             let camMatrix = view * model;
             let camVertices = Vector.map(Mat4x4.mulVec3(camMatrix), vertices);
 
-            // Sphere in camera space for early rejection.
             let (centerWorld, radius) = worldSphere(model, i);
             let centerCam = Mat4x4.mulVec3(view, centerWorld);
             let boundingSphereCam = (centerCam, radius);
@@ -44,19 +43,33 @@ mod Instance {
                 case p :: rest => clipAll(rest, clipAgainstPlane(p, tris, boundingSphereCam))
             };
 
+            let debugBackfaces = Options.debugShowBackfaces();
+            let cullOriginCam = match Options.debugBackfaceCullPoint() {
+                case None => Vec3.zero()
+                case Some(p) => Mat4x4.mulVec3(view, p)
+            };
+
             foreach ((p1, p2, p3, color) <- triangles) {
-                let triCam = (Vector.get(p1, camVertices), Vector.get(p2, camVertices), Vector.get(p3, camVertices));
-                let clipped = clipAll(planes, Vector#{triCam});
-                foreach ((c0, c1, c2) <- clipped) {
-                    let Vec3(_, _, z0) = c0;
-                    let Vec3(_, _, z1) = c1;
-                    let Vec3(_, _, z2) = c2;
-                    let invalid = (z: Float64) -> z <= 0.0 or Float64.isNan(z);
-                    if (invalid(z0) or invalid(z1) or invalid(z2)) () else {
-                        let (x0, y0) = projectVertex(camera, Vec4.fromVec3(c0)) |> toPixelCoord;
-                        let (x1, y1) = projectVertex(camera, Vec4.fromVec3(c1)) |> toPixelCoord;
-                        let (x2, y2) = projectVertex(camera, Vec4.fromVec3(c2)) |> toPixelCoord;
-                        Canvas.drawShadedTriangle(x0, y0, x1, y1, x2, y2, 1.0, 1.0, 1.0, z0, z1, z2, color, canvas) 
+                let a = Vector.get(p1, camVertices);
+                let b = Vector.get(p2, camVertices);
+                let c = Vector.get(p3, camVertices);
+                let n = (b - a) * (c - a);
+                let viewVec = a - cullOriginCam;
+                let isBackface = Vec3.dot(n, viewVec) <= 0.0;
+                if (isBackface and not debugBackfaces) () else {
+                    let drawColor = if (isBackface) Options.debugBackfaceColor() else color;
+                    let clipped = clipAll(planes, Vector#{(a, b, c)});
+                    foreach ((c0, c1, c2) <- clipped) {
+                        let Vec3(_, _, z0) = c0;
+                        let Vec3(_, _, z1) = c1;
+                        let Vec3(_, _, z2) = c2;
+                        let invalid = z -> z <= 0.0 or Float64.isNan(z);
+                        if (invalid(z0) or invalid(z1) or invalid(z2)) () else {
+                            let (x0, y0) = projectVertex(camera, Vec4.fromVec3(c0)) |> toPixelCoord;
+                            let (x1, y1) = projectVertex(camera, Vec4.fromVec3(c1)) |> toPixelCoord;
+                            let (x2, y2) = projectVertex(camera, Vec4.fromVec3(c2)) |> toPixelCoord;
+                            Canvas.drawShadedTriangle(x0, y0, x1, y1, x2, y2, 1.0, 1.0, 1.0, z0, z1, z2, drawColor, canvas) 
+                        }
                     }
                 }
             }
@@ -113,10 +126,9 @@ mod Instance {
     def projectVertex(cam: Camera[r], v: Vec4): (Float64, Float64) \ r = {
         let (cw, ch) = Options.dimensions();
         let (vw, vh) = Options.viewportDimensions();
-        // Derive focal length from vertical FOV and viewport height.
         let f = Int32.toFloat64(vh) / (2.0 * Math.tan(Camera.fovY(cam) / 2.0));
         let Vec3(x, y, z) = Mat3x4.mulVec4(viewportToCanvasMatrix(cw, ch, vw, vh, f), v);
-        (x / z + Int32.toFloat64(cw / 2), y / z + Int32.toFloat64(ch / 2))
+        (x / z + Int32.toFloat64(cw / 2), Int32.toFloat64(ch / 2) - y / z)
     }
 
     def clipTrianglesAgainstPlane(plane: (Vec3, Float64), triangles: Vector[(Vec3, Vec3, Vec3)]): Vector[(Vec3, Vec3, Vec3)] = {

@@ -34,7 +34,7 @@ def rotatingCube(): Unit \ IO = region rc {
         );
         let cubeInstance = Instance.fromModel(
             rc, cubeModel, 
-            position = Vec3(0.0, 0.0, 6.0),
+            position = Vec3(0.0, 0.0, 2.5),
             rotation = Vec3(0.0, 0.0, 0.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
