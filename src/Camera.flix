@@ -61,4 +61,7 @@ mod Camera {
         let translation = Mat4x4.translation(-px, -py, -pz);
         rotation * translation
 
+    pub def getPosition(c: Camera[r]): Vec3 \ r = c->position
+    pub def getRotation(c: Camera[r]): Vec3 \ r = c->rotation
+
 }
