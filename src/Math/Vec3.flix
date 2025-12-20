@@ -86,6 +86,12 @@ mod Math {
             if (len == 0.0) v else scale(v, 1.0 / len)
 
         pub def zero(): Vec3 = Vec3(0.0, 0.0, 0.0)
+        pub def up(): Vec3 = Vec3(0.0, 1.0, 0.0)
+        pub def forward(): Vec3 = Vec3(0.0, 0.0, 1.0)
+        pub def right(): Vec3 = Vec3(1.0, 0.0, 0.0)
+        pub def left(): Vec3 = Vec3(-1.0, 0.0, 0.0)
+        pub def down(): Vec3 = Vec3(0.0, -1.0, 0.0)
+        pub def back(): Vec3 = Vec3(0.0, 0.0, -1.0)
 
     }
 

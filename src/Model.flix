@@ -1,8 +1,16 @@
 type alias Color = (Int32, Int32, Int32)
-type alias ColoredTriangle = (Int32, Int32, Int32, Color)
 
 enum Model {
-    case Model(String, Vector[Math.Vec3], Vector[(ColoredTriangle)])
+    case Model(
+        String, // name
+        Vector[Math.Vec3], // vertices
+        Vector[( // triangles
+            Int32, Int32, Int32, // vertex indices
+            Math.Vec3, Math.Vec3, Math.Vec3, // vertex normals
+            Color // color
+        )], 
+        Float64
+    )
 }
 
 mod Model {
@@ -10,7 +18,7 @@ mod Model {
     use Math.Vec3.Vec3
 
     pub def boundingSphere(model: Model): (Vec3, Float64) = match model {
-        case Model(_, verts, _) => {
+        case Model(_, verts, _, _) => {
             let len = Int32.toFloat64(Vector.length(verts));
             let center = Vector.fold(verts) |> Vec3.divide(len);
             let radius = verts 
@@ -27,50 +35,25 @@ mod Model {
             (1.0, 1.0, -1.0), (-1.0, 1.0, -1.0), (-1.0, -1.0, -1.0), (1.0, -1.0, -1.0)
         };
         let triangles = Vector#{
-            (0, 2, 1, front), (0, 3, 2, front), // Front face (z = +1)
-            (4, 6, 7, back), (4, 5, 6, back), // Back face (z = -1)
-            (4, 1, 5, top), (4, 0, 1, top), // Top face (y = +1)
-            (3, 6, 2, bot), (3, 7, 6, bot), // Bottom face (y = -1)
-            (1, 6, 5, left), (1, 2, 6, left), // Left face (x = -1)
-            (4, 3, 0, right), (4, 7, 3, right)  // Right face (x = +1)
+            // Front face (z = +1)
+            (0, 2, 1, Vec3.forward(), Vec3.forward(), Vec3.forward(), front),
+            (0, 3, 2, Vec3.forward(), Vec3.forward(), Vec3.forward(), front),
+            // Back face (z = -1)
+            (4, 6, 7, Vec3.back(), Vec3.back(), Vec3.back(), back),
+            (4, 5, 6, Vec3.back(), Vec3.back(), Vec3.back(), back),
+            // Top face (y = +1)
+            (4, 1, 5, Vec3.up(), Vec3.up(), Vec3.up(), top),
+            (4, 0, 1, Vec3.up(), Vec3.up(), Vec3.up(), top),
+            // Bottom face (y = -1)
+            (3, 6, 2, Vec3.down(), Vec3.down(), Vec3.down(), bot),
+            (3, 7, 6, Vec3.down(), Vec3.down(), Vec3.down(), bot),
+            // Left face (x = -1)
+            (1, 6, 5, Vec3.left(), Vec3.left(), Vec3.left(), left),
+            (1, 2, 6, Vec3.left(), Vec3.left(), Vec3.left(), left),
+            // Right face (x = +1)
+            (4, 3, 0, Vec3.right(), Vec3.right(), Vec3.right(), right),
+            (4, 7, 3, Vec3.right(), Vec3.right(), Vec3.right(), right)
         };
-        Model.Model("Cube", Vector.map(Math.Vec3.fromTuple, vertices), triangles)
+        Model.Model("Cube", Vector.map(Math.Vec3.fromTuple, vertices), triangles, 20.0)
 
-    pub def pyramid(): Model =
-        let color = (255, 255, 255);
-        let vertices = Vector#{
-            (1.0, 0.0, 1.0), (1.0, 0.0, -1.0), (-1.0, 0.0, 1.0), (-1.0, 0.0, -1.0), (0.0, 1.0, 0.0)   
-        };
-        let triangles = Vector#{
-            (1, 2, 3, color), (0, 1, 3, color), 
-            (0, 2, 4, color), (0, 1, 4, color), 
-            (2, 3, 4, color), (1, 3, 4, color), 
-            (0, 4, 1, color)
-        };
-        Model.Model("Pyramid", Vector.map(Math.Vec3.fromTuple, vertices), triangles)
-
-    pub def tetrahedron(color: Color): Model =
-        let vertices = Vector#{
-            (1.0, 1.0, 1.0), (-1.0, -1.0, 1.0), (-1.0, 1.0, -1.0), (1.0, -1.0, -1.0)
-        };
-        let triangles = Vector#{
-            (0, 1, 2, color),
-            (0, 3, 1, color),
-            (0, 2, 3, color),
-            (1, 3, 2, color)
-        };
-        Model.Model("Tetrahedron", Vector.map(Math.Vec3.fromTuple, vertices), triangles)
-
-    pub def octahedron(top: Color, bottom: Color, equator: Color): Model =
-        let vertices = Vector#{
-            (0.0, 1.0, 0.0), // top
-            (0.0, -1.0, 0.0), // bottom
-            (1.0, 0.0, 0.0), (-1.0, 0.0, 0.0), (0.0, 0.0, 1.0), (0.0, 0.0, -1.0) // equator ring
-        };
-        let triangles = Vector#{
-            (0, 2, 4, equator), (0, 4, 3, top), (0, 3, 5, equator), (0, 5, 2, top),
-            (1, 4, 2, equator), (1, 3, 4, bottom), (1, 5, 3, equator), (1, 2, 5, bottom)
-        };
-        Model.Model("Octahedron", Vector.map(Math.Vec3.fromTuple, vertices), triangles)
-        
 }

@@ -1,6 +1,6 @@
 [package]
 name        = "ascii-rasterizer"
 description = "A rasterizer that can render 3D objects in ascii graphics. Based on Gabriel Gambetta's book Computer Graphics from Scratch."
-version     = "0.2.0"
+version     = "0.2.1"
 flix        = "0.67.0"
 authors     = ["adamtal@hotmail.com"]

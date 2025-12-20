@@ -7,7 +7,8 @@ struct Canvas[r: Region] {
 }
 
 mod Canvas {
-    @Internal
+    use Math.Vec3
+    use Math.Vec3.Vec3
     pub type alias Buffer[v: Type, r: Region] = Array[Array[v, r], r]
 
     pub def dimensions(c: Canvas[r]): (Int32, Int32) = (c->width, c->height)
@@ -17,7 +18,7 @@ mod Canvas {
             width = w, 
             height = h, 
             raster = mkBuffer(rc, w, h, 0), 
-            zBuffer = mkBuffer(rc, w, h, 0.0), 
+            zBuffer = mkBuffer(rc, w, h, LowerBound.minValue()), 
             rc = rc 
         }
 
@@ -30,7 +31,7 @@ mod Canvas {
             j <- Range.Range(0, c->width)
         ) {
             Array.get(i, c->raster) |> Array.put(0, j);
-            Array.get(i, c->zBuffer) |> Array.put(0.0, j)
+            Array.get(i, c->zBuffer) |> Array.put(LowerBound.minValue(), j)
         }
     }
 
@@ -62,28 +63,6 @@ mod Canvas {
         Array.join("\n", frameRows)
     }
 
-    def _getASCIITerminalFrameHalved(c: Canvas[r]): String \ r = region rc {
-        let width = c->width;
-        let height = c->height / 2;
-        let frameRows = Array.empty(rc, height);
-
-        foreach (i <- Range.Range(0, height)) {
-            let rowVec =
-                Vector.init(j -> {
-                    let top = getValueAt(i * 2, j, c->raster);
-                    let bot = getValueAt(i * 2 + 1, j, c->raster);
-                    let avg = (top + bot) / 2;
-                    let (r, g, b) = unpackRGB(avg);
-                    let gray = grayScaleFromRGB(r, g, b);
-                    asciiFromGrayScale(gray)
-                }, width);
-
-            Array.put(Vector.join("", rowVec), i, frameRows)
-        };
-
-        Array.join("\n", frameRows)
-    }
-
     def _getASCIITerminalFrame(c: Canvas[r]): String \ r = region rc {
         let frameRows = Array.empty(rc, c->height);
         foreach (i <- Range.Range(0, c->height)) {
@@ -101,16 +80,18 @@ mod Canvas {
         Array.join("\n", frameRows)
     }
 
-    def asciiFromGrayScale(gray: Float64): Char =
+    def asciiFromGrayScale(gray: Float64): Char = {
         let idx = Float64.clampToInt32(min = 0, max = 255, nanValue = -1, gray / Options.asciiGradientIncrement());
         Options.asciiChars() |> String.charAt(idx)
+    }
 
     def grayScaleFromRGB(r: Int32, g: Int32, b: Int32): Float64 = 
         (0.299 * Int32.toFloat64(r)) + (0.587 * Int32.toFloat64(g)) + (0.114 * Int32.toFloat64(b))
 
-    def unpackRGBRich(color: Int32): RichString.Color =
+    def unpackRGBRich(color: Int32): RichString.Color = {
         let (r, g, b) = unpackRGB(color);
         RichString.Color.Rgb(r, g, b)
+    }
         
     pub def drawTriangle(x0: Int32, y0: Int32, x1: Int32, y1: Int32, x2: Int32, y2: Int32, color: (Int32, Int32, Int32), c: Canvas[r]): Unit \ r = {
         drawLine(x0, y0, x1, y1, color, c);
@@ -135,60 +116,180 @@ mod Canvas {
                 drawPoint(x, y, color, c)
     }
 
+    def edgeFunction(ax: Float64, ay: Float64, bx: Float64, by: Float64, px: Float64, py: Float64): Float64 =
+        (px - ax) * (by - ay) - (py - ay) * (bx - ax)
+
+    def isTopLeftEdge(ax: Float64, ay: Float64, bx: Float64, by: Float64): Bool =
+        (ay < by) or (ay == by and ax > bx)
+
+    def ceilToInt32(v: Float64): Int32 = match Float64.ceil(v) |> Float64.tryToInt32 {
+        case Some(i) => i
+        case None => unreachable!()
+    }
+
+    def floorToInt32(v: Float64): Int32 = match Float64.floor(v) |> Float64.tryToInt32 {
+        case Some(i) => i
+        case None => unreachable!()
+    }
+
+    def boundingBox(
+        x0: Float64, y0: Float64, 
+        x1: Float64, y1: Float64, 
+        x2: Float64, y2: Float64, 
+        c: Canvas[r]
+    ): (Int32, Int32, Int32, Int32) = {
+        let minXf = Float64.min(x0, Float64.min(x1, x2));
+        let maxXf = Float64.max(x0, Float64.max(x1, x2));
+        let minYf = Float64.min(y0, Float64.min(y1, y2));
+        let maxYf = Float64.max(y0, Float64.max(y1, y2));
+
+        let minX0 = ceilToInt32(minXf - 0.5);
+        let maxX0 = floorToInt32(maxXf - 0.5);
+        let minY0 = ceilToInt32(minYf - 0.5);
+        let maxY0 = floorToInt32(maxYf - 0.5);
+
+        let minX = Int32.max(0, minX0);
+        let maxX = Int32.min(c->width - 1, maxX0);
+        let minY = Int32.max(0, minY0);
+        let maxY = Int32.min(c->height - 1, maxY0);
+        (minX, maxX, minY, maxY)
+    }
+
+    def barycentricEdgeValues(
+        px: Float64, py: Float64, 
+        x0: Float64, y0: Float64, 
+        x1: Float64, y1: Float64, 
+        x2: Float64, y2: Float64
+    ): (Float64, Float64, Float64) = {
+        let w0e = edgeFunction(x1, y1, x2, y2, px, py);
+        let w1e = edgeFunction(x2, y2, x0, y0, px, py);
+        let w2e = edgeFunction(x0, y0, x1, y1, px, py);
+        (w0e, w1e, w2e)
+    }
+
+    def insideTriangle(w0e: Float64, w1e: Float64, w2e: Float64, tl01: Bool, tl12: Bool, tl20: Bool): Bool =
+        (w0e > 0.0 or (w0e == 0.0 and tl12)) and
+        (w1e > 0.0 or (w1e == 0.0 and tl20)) and
+        (w2e > 0.0 or (w2e == 0.0 and tl01))
+
+    def barycentricWeights(w0e: Float64, w1e: Float64, w2e: Float64, invArea: Float64): (Float64, Float64, Float64) =
+        (w0e * invArea, w1e * invArea, w2e * invArea)
+
+    def perspectiveHeight(
+        w0: Float64, w1: Float64, w2: Float64, 
+        h0: Float64, h1: Float64, h2: Float64, 
+        invZ0: Float64, invZ1: Float64, invZ2: Float64
+    ): (Float64, Float64) = {
+        let invZ = w0 * invZ0 + w1 * invZ1 + w2 * invZ2;
+        let hOverZ = w0 * (h0 * invZ0) + w1 * (h1 * invZ1) + w2 * (h2 * invZ2);
+        let h = if (invZ == 0.0) 0.0 else (hOverZ / invZ);
+        (invZ, h)
+    }
+
+    def shadeColor(h: Float64, rf: Float64, gf: Float64, bf: Float64): (Int32, Int32, Int32) = {
+        let clamp255 = Float64.clampToInt32(min = 0, max = 255, nanValue = 0);
+        (clamp255(rf * h), clamp255(gf * h), clamp255(bf * h))
+    }
+
     pub def drawShadedTriangle(
-        x0: Int32, y0: Int32,
-        x1: Int32, y1: Int32,
-        x2: Int32, y2: Int32,
+        x0: Float64, y0: Float64,
+        x1: Float64, y1: Float64,
+        x2: Float64, y2: Float64,
         h0: Float64, h1: Float64, h2: Float64,
-        z0: Float64, z1: Float64, z2: Float64,        
-        color: (Int32, Int32, Int32), 
+        invZ0: Float64, invZ1: Float64, invZ2: Float64,
+        color: (Int32, Int32, Int32),
         c: Canvas[r]
     ): Unit \ r = {
-        let (r, g, b) = rgbAsFloat(color);
-        let points = List#{(x0, y0, h0, z0), (x1, y1, h1, z1), (x2, y2, h2, z2)} |> List.sortBy(match (_, y, _, _) -> y);
-        let ((ax0, ay0, ah0, az0), (ax1, ay1, ah1, az1), (ax2, ay2, ah2, az2)) = match points {
-            case top :: mid :: bot :: Nil => (top, mid, bot)
-            case _ => unreachable!()
-        };
-        let x01 = interpolate(ay0, ax0, ay1, ax1);
-        let h01 = interpolateSmooth(ay0, ah0, ay1, ah1);
-        let z01 = interpolateSmooth(ay0, az0, ay1, az1);
-        let x12 = interpolate(ay1, ax1, ay2, ax2);
-        let h12 = interpolateSmooth(ay1, ah1, ay2, ah2);
-        let z12 = interpolateSmooth(ay1, az1, ay2, az2);
-        let x02 = interpolate(ay0, ax0, ay2, ax2);
-        let h02 = interpolateSmooth(ay0, ah0, ay2, ah2);
-        let z02 = interpolateSmooth(ay0, az0, ay2, az2);
-        let x012 = Vector.append(Vector.dropRight(1, x01), x12);
-        let h012 = Vector.append(Vector.dropRight(1, h01), h12);
-        let z012 = Vector.append(Vector.dropRight(1, z01), z12);
-        let m = Vector.length(x012) / 2;
-        let (xLeft, xRight, hLeft, hRight, zLeft, zRight) = 
-            if (Vector.get(m, x02) < Vector.get(m, x012)) 
-                (x02, x012, h02, h012, z02, z012) 
-            else 
-                (x012, x02, h012, h02, z012, z02);
-        foreach (y <- Range.Range(ay0, ay2))
-            let xL = Vector.get(y - ay0, xLeft);
-            let xR = Vector.get(y - ay0, xRight);
-            let hL = Vector.get(y - ay0, hLeft);
-            let hR = Vector.get(y - ay0, hRight);
-            let zL = Vector.get(y - ay0, zLeft);
-            let zR = Vector.get(y - ay0, zRight);
-            let hSeg = interpolateSmooth(xL, hL, xR, hR);
-            let zSeg = interpolateSmooth(xL, zL, xR, zR);
-            
-            foreach (x <- Range.Range(xL, xR)) {
-                let z = 1.0 / Vector.get(x - xL, zSeg);
-                let currentZ = getZAtPoint(x, y, c);
-                if (z > currentZ) {
-                    let h = Vector.get(x - xL, hSeg);
-                    let f = Float64.clampToInt32(min = 0, max = 255, nanValue = -1);
-                    let sh = (f(r * h), f(g * h), f(b * h));
-                    drawPoint(x, y, sh, c);
-                    putZValue(x, y, z, c)
-                } else ()
+        let area = edgeFunction(x0, y0, x1, y1, x2, y2);
+        if (area != 0.0) {
+            let invArea = 1.0 / area;
+            let (minX, maxX, minY, maxY) = boundingBox(x0, y0, x1, y1, x2, y2, c);
+            let tl01 = isTopLeftEdge(x0, y0, x1, y1);
+            let tl12 = isTopLeftEdge(x1, y1, x2, y2);
+            let tl20 = isTopLeftEdge(x2, y2, x0, y0);
+
+            let (rf, gf, bf) = rgbAsFloat(color);
+
+            foreach (y <- Range.Range(minY, maxY + 1)) {
+                let py = Int32.toFloat64(y) + 0.5;
+
+                foreach (x <- Range.Range(minX, maxX + 1)) {
+                    let px = Int32.toFloat64(x) + 0.5;
+
+                    let (w0e, w1e, w2e) = barycentricEdgeValues(px, py, x0, y0, x1, y1, x2, y2);
+
+                    if (insideTriangle(w0e, w1e, w2e, tl01, tl12, tl20)) {
+                        let (w0, w1, w2) = barycentricWeights(w0e, w1e, w2e, invArea);
+                        let (invZ, h) = perspectiveHeight(w0, w1, w2, h0, h1, h2, invZ0, invZ1, invZ2);
+
+                        let currentInvZ = getZAtPoint(x, y, c);
+                        if (invZ >= currentInvZ) {
+                            let sh = shadeColor(h, rf, gf, bf);
+                            drawPoint(x, y, sh, c);
+                            putZValue(x, y, invZ, c)
+                        }
+                    } 
+                }
             }
+        }
+    }
+
+    pub def drawPhongTriangle(
+        x0: Float64, y0: Float64,
+        x1: Float64, y1: Float64,
+        x2: Float64, y2: Float64,
+        p0: Vec3, p1: Vec3, p2: Vec3,
+        n0: Vec3, n1: Vec3, n2: Vec3,
+        invZ0: Float64, invZ1: Float64, invZ2: Float64,
+        specular: Float64,
+        lights: List[Light],
+        camPos: Vec3,
+        color: (Int32, Int32, Int32),
+        c: Canvas[r]
+    ): Unit \ r = {
+        let area = edgeFunction(x0, y0, x1, y1, x2, y2);
+        if (area != 0.0) {
+            let invArea = 1.0 / area;
+            let (minX, maxX, minY, maxY) = boundingBox(x0, y0, x1, y1, x2, y2, c);
+            let tl01 = isTopLeftEdge(x0, y0, x1, y1);
+            let tl12 = isTopLeftEdge(x1, y1, x2, y2);
+            let tl20 = isTopLeftEdge(x2, y2, x0, y0);
+
+            let (rf, gf, bf) = rgbAsFloat(color);
+
+            foreach (y <- Range.Range(minY, maxY + 1)) {
+                let py = Int32.toFloat64(y) + 0.5;
+
+                foreach (x <- Range.Range(minX, maxX + 1)) {
+                    let px = Int32.toFloat64(x) + 0.5;
+
+                    let (w0e, w1e, w2e) = barycentricEdgeValues(px, py, x0, y0, x1, y1, x2, y2);
+
+                    if (insideTriangle(w0e, w1e, w2e, tl01, tl12, tl20)) {
+                        let (w0, w1, w2) = barycentricWeights(w0e, w1e, w2e, invArea);
+                        let invZ = w0 * invZ0 + w1 * invZ1 + w2 * invZ2;
+
+                        let currentInvZ = getZAtPoint(x, y, c);
+                        if (invZ >= currentInvZ and invZ != 0.0) {
+                            let w0p = w0 * invZ0;
+                            let w1p = w1 * invZ1;
+                            let w2p = w2 * invZ2;
+                            let sumW = w0p + w1p + w2p;
+
+                            let (bw0, bw1, bw2) = if (sumW == 0.0) (0.0, 0.0, 0.0) else (w0p / sumW, w1p / sumW, w2p / sumW);
+
+                            let pos = Vec3.scale(p0, bw0) + Vec3.scale(p1, bw1) + Vec3.scale(p2, bw2);
+                            let normal = Vec3.normalize(Vec3.scale(n0, bw0) + Vec3.scale(n1, bw1) + Vec3.scale(n2, bw2));
+
+                            let h = Light.lightingForPoint(pos, normal, camPos - pos, specular, lights);
+                            let sh = shadeColor(h, rf, gf, bf);
+                            drawPoint(x, y, sh, c);
+                            putZValue(x, y, invZ, c)
+                        }
+                    } 
+                }
+            }
+        }
     }
 
     pub def drawLine(x0: Int32, y0: Int32, x1: Int32, y1: Int32, color: (Int32, Int32, Int32), c: Canvas[r]): Unit \ r = {
@@ -238,7 +339,7 @@ mod Canvas {
             let a = (Int32.toFloat64(d1) - Int32.toFloat64(d0)) / (Int32.toFloat64(i1) - Int32.toFloat64(i0));
             let l = MutList.empty(rc);
             def loop(i, d) = {
-                if (i <= i1) match Float64.round(d) |> Float64.tryToInt32 {
+                if (i <= i1) match Float64.floor(d) |> Float64.tryToInt32 {
                     case Some(v) => 
                         MutList.push(v, l);
                         loop(i + 1, d + a)

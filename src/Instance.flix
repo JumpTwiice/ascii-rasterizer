@@ -25,61 +25,100 @@ mod Instance {
         position = t#position 
     } 
 
-    pub def render(canvas: Canvas[r0], camera: Camera[r1], i: Instance[r2]): Unit \ r0 + r1 + r2 = match i->model {
-        case Model.Model(_, vertices, triangles) => 
-            let model = modelMatrix(i);
-            let view = Camera.viewMatrix(camera);
-            let camMatrix = view * model;
-            let camVertices = Vector.map(Mat4x4.mulVec3(camMatrix), vertices);
+    pub def render(canvas: Canvas[r0], camera: Camera[r1], i: Instance[r2]): Unit \ r0 + r1 + r2 = {
+        let Model.Model(_, vertices, triangles, specular) = i->model;
+        let model = modelMatrix(i);
+        let view = Camera.viewMatrix(camera);
+        let camMatrix = view * model;
+        let camVertices = Vector.map(Mat4x4.mulVec3(camMatrix), vertices);
+        let transformNormal = n -> {
+            let Vec3(nx, ny, nz) = n;
+            let v = Vec4.Vec4(nx, ny, nz, 0.0);
+            Mat4x4.mulVec4(camMatrix, v) |> Vec4.toVec3 |> Vec3.normalize
+        };
 
-            let (centerWorld, radius) = worldSphere(model, i);
-            let centerCam = Mat4x4.mulVec3(view, centerWorld);
-            let boundingSphereCam = (centerCam, radius);
+        let (centerWorld, radius) = worldSphere(model, i);
+        let centerCam = Mat4x4.mulVec3(view, centerWorld);
+        let boundingSphereCam = (centerCam, radius);
 
-            let planes = Camera.frustumPlanes(camera);
+        let planes = Camera.frustumPlanes(camera);
 
-            def clipAll(ps, tris) = match ps {
-                case Nil => tris
-                case p :: rest => clipAll(rest, clipAgainstPlane(p, tris, boundingSphereCam))
+        def clipAll(ps, tris) = match ps {
+            case Nil => tris
+            case p :: rest => clipAll(rest, clipAgainstPlane(p, tris, boundingSphereCam))
+        };
+
+        let camLights = List.map(Light.toCameraSpace(view), Options.lights());
+        let camPos = Vec3.zero();
+
+        foreach ((p1, p2, p3, n1, n2, n3, drawColor) <- triangles) {
+            let a = Vector.get(p1, camVertices);
+            let b = Vector.get(p2, camVertices);
+            let c = Vector.get(p3, camVertices);
+            let normal = (c - a) * (b - a);
+            let tn1 = transformNormal(n1);
+            let tn2 = transformNormal(n2);
+            let tn3 = transformNormal(n3);
+            let (h0, h1, h2) = match Options.shadingMode() {
+                case Shading.Flat => {
+                    let centroid = Vec3.scale(a + b + c, 0.333);
+                    let h = Light.lightingForPoint(centroid, normal, camPos - centroid, specular, camLights);
+                    (h, h, h)
+                }
+                case Shading.Gouraud => {
+                    let h0 = Light.lightingForPoint(a, tn1, camPos - a, specular, camLights);
+                    let h1 = Light.lightingForPoint(b, tn2, camPos - b, specular, camLights);
+                    let h2 = Light.lightingForPoint(c, tn3, camPos - c, specular, camLights);
+                    (h0, h1, h2)
+                }
+                case _ => (0.0, 0.0, 0.0)
             };
-
-            let debugBackfaces = Options.debugShowBackfaces();
-            let cullOriginCam = match Options.debugBackfaceCullPoint() {
-                case None => Vec3.zero()
-                case Some(p) => Mat4x4.mulVec3(view, p)
-            };
-            let wireframe = Options.renderWireframe();
-
-            foreach ((p1, p2, p3, color) <- triangles) {
-                let a = Vector.get(p1, camVertices);
-                let b = Vector.get(p2, camVertices);
-                let c = Vector.get(p3, camVertices);
-                let n = (b - a) * (c - a);
-                let viewVec = a - cullOriginCam;
-                let isBackface = Vec3.dot(n, viewVec) <= 0.0;
-                if (isBackface and not debugBackfaces) () else {
-                    let drawColor = if (isBackface) Options.debugBackfaceColor() else color;
-                    let clipped = clipAll(planes, Vector#{(a, b, c)});
-                    foreach ((c0, c1, c2) <- clipped) {
-                        let Vec3(_, _, z0) = c0;
-                        let Vec3(_, _, z1) = c1;
-                        let Vec3(_, _, z2) = c2;
-                        let invalid = z -> z <= 0.0 or Float64.isNan(z);
-                        if (invalid(z0) or invalid(z1) or invalid(z2)) () else {
-                            let (x0, y0) = projectVertex(camera, Vec4.fromVec3(c0)) |> toPixelCoord;
-                            let (x1, y1) = projectVertex(camera, Vec4.fromVec3(c1)) |> toPixelCoord;
-                            let (x2, y2) = projectVertex(camera, Vec4.fromVec3(c2)) |> toPixelCoord;
-                            if (wireframe) {
-                                Canvas.drawLine(x0, y0, x1, y1, drawColor, canvas);
-                                Canvas.drawLine(x1, y1, x2, y2, drawColor, canvas);
-                                Canvas.drawLine(x2, y2, x0, y0, drawColor, canvas)
-                            } else {
-                                Canvas.drawShadedTriangle(x0, y0, x1, y1, x2, y2, 1.0, 1.0, 1.0, z0, z1, z2, drawColor, canvas) 
-                            }
-                        }
+            let viewDir = camPos - a;
+            let isBackface = Vec3.dot(normal, viewDir) <= 0.0;
+            if (not isBackface) {
+                let clipped = clipAll(planes, Vector#{(a, b, c)});
+                foreach ((c0, c1, c2) <- clipped) {
+                    let Vec3(_, _, z0) = c0;
+                    let Vec3(_, _, z1) = c1;
+                    let Vec3(_, _, z2) = c2;
+                    let isValid = z -> not Float64.isNan(z) and z > 0.0;
+                    if (isValid(z0) and isValid(z1) and isValid(z2)) {
+                        let (x0, y0) = projectVertex(camera, Vec4.fromVec3(c0));
+                        let (x1, y1) = projectVertex(camera, Vec4.fromVec3(c1));
+                        let (x2, y2) = projectVertex(camera, Vec4.fromVec3(c2));
+                        
+                        match Options.shadingMode() {
+                            case Shading.Flat => 
+                                Canvas.drawShadedTriangle(
+                                    x0, y0, x1, y1, x2, y2,
+                                    h0, h1, h2,
+                                    1.0 / z0, 1.0 / z1, 1.0 / z2,
+                                    drawColor, canvas
+                                )
+                            case Shading.Gouraud => 
+                                Canvas.drawShadedTriangle(
+                                    x0, y0, x1, y1, x2, y2,
+                                    h0, h1, h2,
+                                    1.0 / z0, 1.0 / z1, 1.0 / z2,
+                                    drawColor, canvas
+                                )
+                            case Shading.Phong => 
+                                Canvas.drawPhongTriangle(
+                                    x0, y0, x1, y1, x2, y2,
+                                    a, b, c,
+                                    tn1, tn2, tn3,
+                                    1.0 / z0, 1.0 / z1, 1.0 / z2,
+                                    specular,
+                                    camLights,
+                                    camPos,
+                                    drawColor,
+                                    canvas
+                                )
+                        }                            
                     }
                 }
             }
+        }
     }
 
     def clipAgainstPlane(
@@ -210,17 +249,5 @@ mod Instance {
             0.0, 0.0, 1.0, 0.0
         })
     }
-
-    def toPixelCoord(p: (Float64, Float64)): (Int32, Int32) = {
-        let (x, y) = p;
-        match Float64.tryToInt32(x) {
-            case Some(x0) => match Float64.tryToInt32(y) {
-                case Some(y0) => (x0, y0)
-                case None => bug!("Could not fit y-coordinate into Int32")
-            }
-            case None => bug!("Could not fit x-coordinate into Int32")
-        }
-    }
-
 
 }

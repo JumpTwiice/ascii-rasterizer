@@ -11,12 +11,9 @@ mod Options {
 
     pub def zNear(): Float64 = 0.5
 
-    pub def debugShowBackfaces(): Bool = false
-    
-    pub def debugBackfaceColor(): (Int32, Int32, Int32) = (255, 0, 255)
+    pub def lights(): List[Light] = List#{
+        Light.Point(0.7, Math.Vec3.Vec3(0.0, 0.0, -1.0))
+    }
 
-    pub def debugBackfaceCullPoint(): Option[Math.Vec3] = None
-
-    pub def renderWireframe(): Bool = false
-
+    pub def shadingMode(): Shading = Shading.Phong
 }
