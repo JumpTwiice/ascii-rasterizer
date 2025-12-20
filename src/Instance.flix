@@ -7,9 +7,10 @@ struct Instance[r] {
 }
 
 mod Instance {
-    use Math.{Mat4x4, Mat3x4, Vec3, Vec4}
+    use Math.{Mat4x4, Vec2, Vec3, Vec4}
     use Math.Vec4.Vec4
     use Math.Vec3.Vec3
+    use Math.Vec2.Vec2
 
     pub def fromModel(
         rc: Region[r], 
@@ -30,6 +31,7 @@ mod Instance {
         let model = modelMatrix(i);
         let view = Camera.viewMatrix(camera);
         let camMatrix = view * model;
+        let camToCanvas = cameraToCanvasProjectionMatrix(camera);
         let camVertices = Vector.map(Mat4x4.mulVec3(camMatrix), vertices);
         let transformNormal = n -> {
             let Vec3(nx, ny, nz) = n;
@@ -51,15 +53,15 @@ mod Instance {
         let camLights = List.map(Light.toCameraSpace(view), Options.lights());
         let camPos = Vec3.zero();
 
-        foreach ((p1, p2, p3, n1, n2, n3, drawColor) <- triangles) {
+        foreach ((p1, p2, p3, n1, n2, n3, tx1, tx2, tx3, material) <- triangles) {
             let a = Vector.get(p1, camVertices);
             let b = Vector.get(p2, camVertices);
             let c = Vector.get(p3, camVertices);
             let tn1 = transformNormal(n1);
             let tn2 = transformNormal(n2);
             let tn3 = transformNormal(n3);
-            let clipped = clipAll(planes, Vector#{((a, tn1), (b, tn2), (c, tn3))});
-            foreach (((c0, cn0), (c1, cn1), (c2, cn2)) <- clipped) {
+            let clipped = clipAll(planes, Vector#{((a, tn1, tx1), (b, tn2, tx2), (c, tn3, tx3))});
+            foreach (((c0, cn0, cuv0), (c1, cn1, cuv1), (c2, cn2, cuv2)) <- clipped) {
                 let normal = (c2 - c0) * (c1 - c0);
                 let viewDir = camPos - c0;
                 let isBackface = Vec3.dot(normal, viewDir) <= 0.0;
@@ -69,9 +71,9 @@ mod Instance {
                     let Vec3(_, _, z2) = c2;
                     let isValid = z -> not Float64.isNan(z) and z > 0.0;
                     if (isValid(z0) and isValid(z1) and isValid(z2)) {
-                        let (x0, y0) = projectVertex(camera, Vec4.fromVec3(c0));
-                        let (x1, y1) = projectVertex(camera, Vec4.fromVec3(c1));
-                        let (x2, y2) = projectVertex(camera, Vec4.fromVec3(c2));
+                        let (x0, y0) = projectVertex(camToCanvas, c0);
+                        let (x1, y1) = projectVertex(camToCanvas, c1);
+                        let (x2, y2) = projectVertex(camToCanvas, c2);
                         
                         match Options.shadingMode() {
                             case Shading.Flat => {
@@ -81,7 +83,7 @@ mod Instance {
                                     x0, y0, x1, y1, x2, y2,
                                     h, h, h,
                                     1.0 / z0, 1.0 / z1, 1.0 / z2,
-                                    drawColor, canvas
+                                    ???, canvas
                                 )
                             }
                             case Shading.Gouraud => {
@@ -92,7 +94,7 @@ mod Instance {
                                     x0, y0, x1, y1, x2, y2,
                                     h0, h1, h2,
                                     1.0 / z0, 1.0 / z1, 1.0 / z2,
-                                    drawColor, canvas
+                                    ???, canvas
                                 )
                             }
                             case Shading.Phong => {
@@ -100,11 +102,12 @@ mod Instance {
                                     x0, y0, x1, y1, x2, y2,
                                     c0, c1, c2,
                                     cn0, cn1, cn2,
+                                    cuv0, cuv1, cuv2,
                                     1.0 / z0, 1.0 / z1, 1.0 / z2,
                                     specular,
                                     camLights,
                                     camPos,
-                                    drawColor,
+                                    material,
                                     canvas
                                 )
                             }
@@ -117,9 +120,9 @@ mod Instance {
 
     def clipAgainstPlane(
         plane: (Vec3, Float64), 
-        triangles: Vector[((Vec3, Vec3), (Vec3, Vec3), (Vec3, Vec3))],
+        triangles: Vector[((Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2))],
         boundingSphere: (Vec3, Float64)
-    ): Vector[((Vec3, Vec3), (Vec3, Vec3), (Vec3, Vec3))] = {
+    ): Vector[((Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2))] = {
         let (center, radius) = boundingSphere;
         let d = signedDistance(plane, center);
         if (d > radius) {
@@ -163,20 +166,37 @@ mod Instance {
         (cWorld, rModel * s)
     }
 
-    def projectVertex(cam: Camera[r], v: Vec4): (Float64, Float64) \ r = {
+    def cameraToCanvasProjectionMatrix(cam: Camera[r]): Mat4x4 \ r = {
         let (cw, ch) = Options.dimensions();
         let (vw, vh) = Options.viewportDimensions();
         let f = Int32.toFloat64(vh) / (2.0 * Math.tan(Camera.fovY(cam) / 2.0));
-        let Vec3(x, y, z) = Mat3x4.mulVec4(viewportToCanvasMatrix(cw, ch, vw, vh, f), v);
-        (x / z + Int32.toFloat64(cw / 2), Int32.toFloat64(ch / 2) - y / z)
+        let cwf = Int32.toFloat64(cw);
+        let chf = Int32.toFloat64(ch);
+        let vwf = Int32.toFloat64(vw);
+        let vhf = Int32.toFloat64(vh);
+        let cwHalf = Int32.toFloat64(cw / 2);
+        let chHalf = Int32.toFloat64(ch / 2);
+        let sx = f * cwf / vwf;
+        let sy = f * chf / vhf;
+        Mat4x4.Mat4x4(Vector#{
+            sx, 0.0, cwHalf, 0.0,
+            0.0, -sy, chHalf, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0, 0.0
+        })
     }
 
-    def clipTrianglesAgainstPlane(plane: (Vec3, Float64), triangles: Vector[((Vec3, Vec3), (Vec3, Vec3), (Vec3, Vec3))]): Vector[((Vec3, Vec3), (Vec3, Vec3), (Vec3, Vec3))] = {
+    def projectVertex(camToCanvas: Mat4x4, v: Vec3): (Float64, Float64) = {
+        let Vec4(x, y, _, w) = Mat4x4.mulVec4(camToCanvas, Vec4.fromVec3(v));
+        (x / w, y / w)
+    }
+
+    def clipTrianglesAgainstPlane(plane: (Vec3, Float64), triangles: Vector[((Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2))]): Vector[((Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2))] = {
         triangles |> Vector.map(clipTriangle(plane)) |> Vector.flatten
     }
 
-    def clipTriangle(plane: (Vec3, Float64), triangle: ((Vec3, Vec3), (Vec3, Vec3), (Vec3, Vec3))): Vector[((Vec3, Vec3), (Vec3, Vec3), (Vec3, Vec3))] = {
-        let ((p0, n0), (p1, n1), (p2, n2)) = triangle;
+    def clipTriangle(plane: (Vec3, Float64), triangle: ((Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2))): Vector[((Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2))] = {
+        let ((p0, n0, tx0), (p1, n1, tx1), (p2, n2, tx2)) = triangle;
         let d0 = signedDistance(plane, p0);
         let d1 = signedDistance(plane, p1);
         let d2 = signedDistance(plane, p2);
@@ -184,11 +204,12 @@ mod Instance {
         let intersect = va -> vb -> da -> db -> {
             let denom = da - db;
             let t = if (denom == 0.0) 0.0 else da / denom;
-            let (pa, na) = va;
-            let (pb, nb) = vb;
+            let (pa, na, uva) = va;
+            let (pb, nb, uvb) = vb;
             let pos = pa + Vec3.scale(pb - pa, t);
             let nor = Vec3.normalize(na + Vec3.scale(nb - na, t));
-            (pos, nor)
+            let uv = Vec2.scale(uva, 1.0 - t) + Vec2.scale(uvb, t);
+            (pos, nor, uv)
         };
         let onlyOnePositive = () -> 
             (d0 > 0.0 and d1 <= 0.0 and d2 <= 0.0) or
@@ -201,31 +222,31 @@ mod Instance {
             Vector.empty()
         } else if (onlyOnePositive()) {
             if (d0 > 0.0) {
-                let i1 = intersect((p0, n0), (p1, n1), d0, d1);
-                let i2 = intersect((p0, n0), (p2, n2), d0, d2);
-                Vector#{((p0, n0), i1, i2)}
+                let i1 = intersect((p0, n0, tx0), (p1, n1, tx1), d0, d1);
+                let i2 = intersect((p0, n0, tx0), (p2, n2, tx2), d0, d2);
+                Vector#{((p0, n0, tx0), i1, i2)}
             } else if (d1 > 0.0) {
-                let i0 = intersect((p1, n1), (p0, n0), d1, d0);
-                let i2 = intersect((p1, n1), (p2, n2), d1, d2);
-                Vector#{((p1, n1), i2, i0)}
+                let i0 = intersect((p1, n1, tx1), (p0, n0, tx0), d1, d0);
+                let i2 = intersect((p1, n1, tx1), (p2, n2, tx2), d1, d2);
+                Vector#{((p1, n1, tx1), i2, i0)}
             } else {
-                let i0 = intersect((p2, n2), (p0, n0), d2, d0);
-                let i1 = intersect((p2, n2), (p1, n1), d2, d1);
-                Vector#{((p2, n2), i0, i1)}
+                let i0 = intersect((p2, n2, tx2), (p0, n0, tx0), d2, d0);
+                let i1 = intersect((p2, n2, tx2), (p1, n1, tx1), d2, d1);
+                Vector#{((p2, n2, tx2), i0, i1)}
             }
         } else {
             if (d0 <= 0.0) {
-                let i1 = intersect((p1, n1), (p0, n0), d1, d0);
-                let i2 = intersect((p2, n2), (p0, n0), d2, d0);
-                Vector#{((p1, n1), (p2, n2), i2), ((p1, n1), i2, i1)}
+                let i1 = intersect((p1, n1, tx1), (p0, n0, tx0), d1, d0);
+                let i2 = intersect((p2, n2, tx2), (p0, n0, tx0), d2, d0);
+                Vector#{((p1, n1, tx1), (p2, n2, tx2), i2), ((p1, n1, tx1), i2, i1)}
             } else if (d1 <= 0.0) {
-                let i0 = intersect((p0, n0), (p1, n1), d0, d1);
-                let i2 = intersect((p2, n2), (p1, n1), d2, d1);
-                Vector#{((p2, n2), (p0, n0), i0), ((p2, n2), i0, i2)}
+                let i0 = intersect((p0, n0, tx0), (p1, n1, tx1), d0, d1);
+                let i2 = intersect((p2, n2, tx2), (p1, n1, tx1), d2, d1);
+                Vector#{((p2, n2, tx2), (p0, n0, tx0), i0), ((p2, n2, tx2), i0, i2)}
             } else {
-                let i0 = intersect((p0, n0), (p2, n2), d0, d2);
-                let i1 = intersect((p1, n1), (p2, n2), d1, d2);
-                Vector#{((p0, n0), (p1, n1), i1), ((p0, n0), i1, i0)}
+                let i0 = intersect((p0, n0, tx0), (p2, n2, tx2), d0, d2);
+                let i1 = intersect((p1, n1, tx1), (p2, n2, tx2), d1, d2);
+                Vector#{((p0, n0, tx0), (p1, n1, tx1), i1), ((p0, n0, tx0), i1, i0)}
             }
         }
     }
@@ -234,18 +255,6 @@ mod Instance {
         let (Vec3(nx, ny, nz), offset) = plane;
         let Vec3(vx, vy, vz) = v;
         vx*nx + vy*ny + vz*nz + offset
-    }
-
-    def viewportToCanvasMatrix(cw: Int32, ch: Int32, vw: Int32, vh: Int32, f: Float64): Mat3x4 = {
-        let cwf = Int32.toFloat64(cw);
-        let chf = Int32.toFloat64(ch);
-        let vwf = Int32.toFloat64(vw);
-        let vhf = Int32.toFloat64(vh);
-        Mat3x4.Mat3x4(Vector#{
-            f * cwf / vwf, 0.0, 0.0, 0.0,
-            0.0, f * chf / vhf, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0
-        })
     }
 
 }

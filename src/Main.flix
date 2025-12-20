@@ -5,6 +5,34 @@ use Math.Mat4x4
 use Math.Vec3.Vec3
 use Math.Vec3
 
+def showTextureImage(): Unit \ IO = region rc {
+    let result = run {
+        let texture = ImageLoader.readTextureFromFile("crate-texture-raw");
+        let (tw, th) = Texture.dimensions(texture);
+        let (maxW, maxH) = Options.dimensions();
+        let scaleW = Int32.toFloat64(maxW) / Int32.toFloat64(tw);
+        let scaleH = Int32.toFloat64(maxH) / Int32.toFloat64(th);
+        let scale = Float64.min(1.0, Float64.min(scaleW, scaleH));
+
+        let clampW = Float64.clampToInt32(min = 1, max = maxW, nanValue = 1);
+        let clampH = Float64.clampToInt32(min = 2, max = maxH, nanValue = 2);
+
+        let w = clampW(Float64.floor(Int32.toFloat64(tw) * scale));
+        let h0 = clampH(Float64.floor(Int32.toFloat64(th) * scale));
+
+        let h = if (h0 `Int32.modulo` 2 == 0) h0 else Int32.max(2, h0 - 1);
+
+        let canvas = Canvas.empty(rc, w, h);
+        Canvas.fillWithTexture(canvas, texture);
+        Canvas.display(canvas)
+    } with Console.runWithIO
+    with FileRead.runWithIO;
+    match result {
+        case Ok(_) => ()
+        case Err(_) => ()
+    }
+}
+
 def defaultCamera(rc: Region[r], position: Vec3, rotation: Vec3): Camera[r] \ r = {
     let (vw, vh) = Options.viewportDimensions();
     let aspect = Int32.toFloat64(vw) / Int32.toFloat64(vh);
@@ -20,18 +48,11 @@ def defaultCamera(rc: Region[r], position: Vec3, rotation: Vec3): Camera[r] \ r 
     )
 }
 
-def rotatingCube(): Unit \ IO = region rc {
-    run {
+def main(): Unit \ IO = region rc {
+    let res = run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
-        let cubeModel = Model.cubeWithColor(
-            (255, 0, 0),
-            (0, 255, 0),
-            (0, 0, 255),
-            (255, 0, 255),
-            (0, 255, 255),
-            (255, 255, 0)
-        );
+        let cubeModel = Model.texturedCube(ImageLoader.readTextureFromFile("crate-texture-raw"));
         let cubeInstance = Instance.fromModel(
             rc, cubeModel, 
             position = Vec3(0.0, 0.0, 2.5),
@@ -39,7 +60,7 @@ def rotatingCube(): Unit \ IO = region rc {
             scale = Vec3(1.0, 1.0, 1.0)
         );
         let camera = defaultCamera(rc, Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0));
-        let secondsToRun = 5i64;
+        let secondsToRun = 10i64;
         let t = Clock.now();
         let dt = 100i64;
         def loop(t0: Int64): Unit = {
@@ -58,6 +79,11 @@ def rotatingCube(): Unit \ IO = region rc {
         loop(0i64)
     } with Console.runWithIO
     with Clock.runWithIO
+    with FileRead.runWithIO;
+    match res {
+        case Ok(_) => ()
+        case Err(_) => ()
+    }
 }
 
 def movingCam(): Unit \ IO = region rc {
@@ -105,30 +131,16 @@ def cubeStatic(): Unit \ IO = region rc {
     run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
-        let cubeModel = Model.cubeWithColor(
-            (255, 0, 0),
-            (0, 255, 0),
-            (0, 0, 255),
-            (255, 0, 255),
-            (0, 255, 255),
-            (255, 255, 0)
-        );
+        let cubeModel = Model.texturedCube(ImageLoader.loadCheckerboardTexture(64, 64, 8));
         let cubeInstance = Instance.fromModel(
             rc, cubeModel, 
-            position = Vec3(2.0, 0.0, 2.5),
-            rotation = Vec3(0.0, 0.0, 0.0),
-            scale = Vec3(1.0, 1.0, 1.0)
-        );
-        let sphereInstance = Instance.fromModel(
-            rc, Model.sphere(),
-            position = Vec3(-0.5, 0.0, 1.7),
+            position = Vec3(0.0, 0.0, 2.5),
             rotation = Vec3(0.0, 0.0, 0.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
         let lightIndicators = lightIndicatorInstances(rc);
         let camera = defaultCamera(rc, Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0));
         Instance.render(canvas, camera, cubeInstance);
-        Instance.render(canvas, camera, sphereInstance);
         renderInstances(canvas, camera, lightIndicators);
         Canvas.display(canvas)
 

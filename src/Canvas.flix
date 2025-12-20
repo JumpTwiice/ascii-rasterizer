@@ -7,7 +7,8 @@ struct Canvas[r: Region] {
 }
 
 mod Canvas {
-    use Math.Vec3
+    use Math.{Vec2, Vec3}
+    use Math.Vec2.Vec2
     use Math.Vec3.Vec3
     pub type alias Buffer[v: Type, r: Region] = Array[Array[v, r], r]
 
@@ -21,6 +22,19 @@ mod Canvas {
             zBuffer = mkBuffer(rc, w, h, LowerBound.minValue()), 
             rc = rc 
         }
+
+    pub def fillWithTexture(c: Canvas[r], t: Texture): Unit \ r = {
+        let (tw, th) = Texture.dimensions(t);
+        foreach (
+            i <- Range.Range(0, c->height);
+            j <- Range.Range(0, c->width)
+        ) {
+            let texX = (j * tw) / c->width;
+            let texY = (i * th) / c->height;
+            let (r, g, b, _) = Texture.getTexel(t, texX, texY);
+            putValueAt(i, j, packRGB((Int16.toInt32(r), Int16.toInt32(g), Int16.toInt32(b))), c->raster)
+        }
+    }
 
     pub def display(c: Canvas[r]): Unit \ Console + r = 
         _getTerminalFrame(c) |> Console.println
@@ -240,11 +254,12 @@ mod Canvas {
         x2: Float64, y2: Float64,
         p0: Vec3, p1: Vec3, p2: Vec3,
         n0: Vec3, n1: Vec3, n2: Vec3,
+        uv0: Vec2, uv1: Vec2, uv2: Vec2,
         invZ0: Float64, invZ1: Float64, invZ2: Float64,
         specular: Float64,
         lights: List[Light],
         camPos: Vec3,
-        color: (Int32, Int32, Int32),
+        material: Material,
         c: Canvas[r]
     ): Unit \ r = {
         let area = edgeFunction(x0, y0, x1, y1, x2, y2);
@@ -254,8 +269,6 @@ mod Canvas {
             let tl01 = isTopLeftEdge(x0, y0, x1, y1);
             let tl12 = isTopLeftEdge(x1, y1, x2, y2);
             let tl20 = isTopLeftEdge(x2, y2, x0, y0);
-
-            let (rf, gf, bf) = rgbAsFloat(color);
 
             foreach (y <- Range.Range(minY, maxY + 1)) {
                 let py = Int32.toFloat64(y) + 0.5;
@@ -280,6 +293,10 @@ mod Canvas {
 
                             let pos = Vec3.scale(p0, bw0) + Vec3.scale(p1, bw1) + Vec3.scale(p2, bw2);
                             let normal = Vec3.normalize(Vec3.scale(n0, bw0) + Vec3.scale(n1, bw1) + Vec3.scale(n2, bw2));
+
+                            let uv = Vec2.scale(uv0, bw0) + Vec2.scale(uv1, bw1) + Vec2.scale(uv2, bw2);
+                            let Vec2(u, v) = uv;
+                            let (rf, gf, bf) = rgbAsFloat(Material.getColorAt(material, u, v));
 
                             let h = Light.lightingForPoint(pos, normal, camPos - pos, specular, lights);
                             let sh = shadeColor(h, rf, gf, bf);

@@ -12,9 +12,7 @@ mod Options {
     pub def zNear(): Float64 = 0.5
 
     pub def lights(): List[Light] = List#{
-        Light.Point(0.7, Math.Vec3.Vec3(0.0, 0.0, 0.5)),
-        Light.Point(0.7, Math.Vec3.Vec3(1.5, 0.0, 2.5)),
-        Light.Point(0.7, Math.Vec3.Vec3(-1.5, 0.0, 2.5))
+        Light.Point(0.6, Math.Vec3.Vec3(0.0, 0.0, 0.0))
     }
 
     pub def shadingMode(): Shading = Shading.Phong
