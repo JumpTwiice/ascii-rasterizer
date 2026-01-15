@@ -70,7 +70,7 @@ def main(): Unit \ IO = region rc {
                 Instance.rotateX(0.1, cubeInstance);
                 Instance.rotateY(0.1, cubeInstance);
                 Instance.rotateZ(0.1, cubeInstance);
-                Instance.render(canvas, camera, cubeInstance);
+                Instance.render(canvas, camera, Options.lights(), cubeInstance);
                 Canvas.display(canvas);
                 Canvas.flush(canvas);
                 loop(t1)
@@ -84,6 +84,54 @@ def main(): Unit \ IO = region rc {
         case Ok(_) => ()
         case Err(_) => ()
     }
+}
+
+def movingLights(): Unit \ IO = region rc {
+    run {
+        let (w, h) = Options.dimensions();
+        let canvas = Canvas.empty(rc, w, h);
+        let cubeModel = Model.cubeWithColor(
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (255, 0, 255),
+            (0, 255, 255),
+            (255, 255, 0)
+        );
+        let cubeInstance = Instance.fromModel(
+            rc, cubeModel, 
+            position = Vec3(0.0, 0.0, 2.5),
+            rotation = Vec3(0.0, 0.0, 0.0),
+            scale = Vec3(1.0, 1.0, 1.0)
+        );
+        let lights0 = Options.lights();
+        let camera = defaultCamera(rc, Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0));
+        let secondsToRun = 5i64;
+        let t = Clock.now();
+         let dt = 100i64;
+         def loop(t0, lights) = {
+             let t1 = Clock.now();
+             if (t1 - t >= secondsToRun * 1000i64) ()
+             else if (t1 - t0 >= dt) {
+                 let newLights = List.map(l -> match l {
+                     case Light.Point(intensity, Vec3(_, y, _)) => 
+                         let angle = 0.1 * Int64.toFloat64(t1 / 100i64);
+                         let newX = 2.0 * Math.cos(angle);
+                         let newZ = 2.0 * Math.sin(angle);
+                         Light.Point(intensity, Vec3(newX, y, newZ))
+                    case _ => l
+                 }, lights);
+                let lightIndicators = lightIndicatorInstances(rc, newLights);
+                Instance.render(canvas, camera, newLights, cubeInstance);
+                renderInstances(canvas, camera, newLights, lightIndicators);
+                Canvas.display(canvas);
+                Canvas.flush(canvas);
+                loop(t1, newLights)
+             } else loop(t0, lights)
+         };
+        loop(0i64, lights0)
+    } with Console.runWithIO
+    with Clock.runWithIO
 }
 
 def movingCam(): Unit \ IO = region rc {
@@ -104,7 +152,7 @@ def movingCam(): Unit \ IO = region rc {
             rotation = Vec3(0.0, 0.0, 0.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
-        let lightIndicators = lightIndicatorInstances(rc);
+        let lightIndicators = lightIndicatorInstances(rc, Options.lights());
         let camera = defaultCamera(rc, Vec3(-3.0, 0.0, 0.0), Vec3(0.0, -0.7, 0.0));
         let secondsToRun = 5i64;
         let t = Clock.now();
@@ -115,8 +163,8 @@ def movingCam(): Unit \ IO = region rc {
             else if (t1 - t0 >= dt) {
                 Camera.translate(Vec3(0.1, 0.0, 0.0), camera);
                 Camera.rotateY(0.02, camera);
-                Instance.render(canvas, camera, cubeInstance);
-                renderInstances(canvas, camera, lightIndicators);
+                Instance.render(canvas, camera, Options.lights(), cubeInstance);
+                renderInstances(canvas, camera, Options.lights(), lightIndicators);
                 Canvas.display(canvas);
                 Canvas.flush(canvas);
                 loop(t1)
@@ -138,10 +186,10 @@ def cubeStatic(): Unit \ IO = region rc {
             rotation = Vec3(0.0, 0.0, 0.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
-        let lightIndicators = lightIndicatorInstances(rc);
+        let lightIndicators = lightIndicatorInstances(rc, Options.lights());
         let camera = defaultCamera(rc, Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0));
-        Instance.render(canvas, camera, cubeInstance);
-        renderInstances(canvas, camera, lightIndicators);
+        Instance.render(canvas, camera, Options.lights(), cubeInstance);
+        renderInstances(canvas, camera, Options.lights(), lightIndicators);
         Canvas.display(canvas)
 
     } with Console.runWithIO
@@ -162,7 +210,7 @@ def main2(): Unit \ IO = region rc {
         );
         let cube1 = Instance.fromModel(
             rc, cubeModel, 
-            position = Vec3(0.0, 0.0, 0.0),
+            position = Vec3(0.0, 0.0, 2.0),
             rotation = Vec3(3.0, 2.0, 1.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
@@ -172,7 +220,7 @@ def main2(): Unit \ IO = region rc {
             rotation = Vec3(1.0, 2.0, 3.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
-        let lightIndicators = lightIndicatorInstances(rc);
+        let lightIndicators = lightIndicatorInstances(rc, Options.lights());
         let instances = cube1 :: cube2 :: Nil;
         let camera = defaultCamera(rc, Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0));
 
@@ -189,8 +237,8 @@ def main2(): Unit \ IO = region rc {
                 if (dx != 0.0 or dy != 0.0) {
                     Camera.rotateY(dx, camera);
                     Camera.rotateX(-dy, camera);
-                    renderInstances(canvas, camera, instances);
-                    renderInstances(canvas, camera, lightIndicators);
+                    renderInstances(canvas, camera, Options.lights(), instances);
+                    renderInstances(canvas, camera, Options.lights(), lightIndicators);
                     Canvas.display(canvas);
                     Canvas.flush(canvas)
                 } else ();
@@ -202,12 +250,12 @@ def main2(): Unit \ IO = region rc {
     with Clock.runWithIO
 }
 
-def renderInstances(canvas: Canvas[r0], camera: Camera[r1], instances: List[Instance[r2]]): Unit \ r0 + r1 + r2 = {
+def renderInstances(canvas: Canvas[r0], camera: Camera[r1], lights: List[Light], instances: List[Instance[r2]]): Unit \ r0 + r1 + r2 = {
     foreach (i <- instances)
-        Instance.render(canvas, camera, i)
+        Instance.render(canvas, camera, lights, i)
 }
 
-def lightIndicatorInstances(rc: Region[r]): List[Instance[r]] \ r = {
+def lightIndicatorInstances(rc: Region[r], lights: List[Light]): List[Instance[r]] \ r = {
     let lightModel = Model.sphere();
     def loop(ls, acc): List[Instance[r]] \ r = match ls {
         case Nil => acc
@@ -221,5 +269,5 @@ def lightIndicatorInstances(rc: Region[r]): List[Instance[r]] \ r = {
             loop(rest, inst :: acc)
         case _ :: rest => loop(rest, acc)
     };
-    loop(Options.lights(), Nil)
+    loop(lights, Nil)
 }

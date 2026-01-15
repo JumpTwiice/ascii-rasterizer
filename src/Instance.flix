@@ -26,7 +26,7 @@ mod Instance {
         position = t#position 
     } 
 
-    pub def render(canvas: Canvas[r0], camera: Camera[r1], i: Instance[r2]): Unit \ r0 + r1 + r2 = {
+    pub def render(canvas: Canvas[r0], camera: Camera[r1], lights: List[Light], i: Instance[r2]): Unit \ r0 + r1 + r2 = {
         let Model.Model(_, vertices, triangles, specular) = i->model;
         let model = modelMatrix(i);
         let view = Camera.viewMatrix(camera);
@@ -50,7 +50,7 @@ mod Instance {
             case p :: rest => clipAll(rest, clipAgainstPlane(p, tris, boundingSphereCam))
         };
 
-        let camLights = List.map(Light.toCameraSpace(view), Options.lights());
+        let camLights = List.map(Light.toCameraSpace(view), lights);
         let camPos = Vec3.zero();
 
         foreach ((p1, p2, p3, n1, n2, n3, tx1, tx2, tx3, material) <- triangles) {

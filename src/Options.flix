@@ -1,9 +1,11 @@
 mod Options {
+    pub def asciiMode(): Bool = false
+
     pub def dimensions(): (Int32, Int32) = (128, 64)
 
-    pub def viewportDimensions(): (Int32, Int32) = (16, 9)
+    pub def viewportDimensions(): (Int32, Int32) = (2,1)
 
-    pub def asciiChars(): String = " .`'^\",:;-_~!|/\\()[]{}<>iIl1ftjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
+    pub def asciiChars(): String = " ░▒▓█"
     
     pub def asciiGradientIncrement(): Float64 = 
         let gradientLen = String.length(asciiChars());

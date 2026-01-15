@@ -37,7 +37,10 @@ mod Canvas {
     }
 
     pub def display(c: Canvas[r]): Unit \ Console + r = 
-        _getTerminalFrame(c) |> Console.println
+        if (Options.asciiMode())
+            getASCIITerminalFrame(c) |> Console.println
+        else
+            getTerminalFrame(c) |> Console.println
 
     pub def flush(c: Canvas[r]): Unit \ r = {
         foreach (
@@ -52,7 +55,7 @@ mod Canvas {
     def mkBuffer(rc: Region[r], w: Int32, h: Int32, v: v): Buffer[v, r] \ r  = 
         Array.init(rc, _ -> Array.repeat(rc, w, v), h)
 
-    def _getTerminalFrame(c: Canvas[r]): String \ r = region rc {
+    def getTerminalFrame(c: Canvas[r]): String \ r = region rc {
         let h2 = (c->height + 1) / 2;
         let width = c->width;
         let frameRows = Array.empty(rc, h2);
@@ -77,7 +80,7 @@ mod Canvas {
         Array.join("\n", frameRows)
     }
 
-    def _getASCIITerminalFrame(c: Canvas[r]): String \ r = region rc {
+    def getASCIITerminalFrame(c: Canvas[r]): String \ r = region rc {
         let frameRows = Array.empty(rc, c->height);
         foreach (i <- Range.Range(0, c->height)) {
             let rowVec =
