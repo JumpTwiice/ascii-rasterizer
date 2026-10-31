@@ -15,7 +15,7 @@ mod Texture {
             )
         }
     }
-    
+
     pub def dimensions(t: Texture): (Int32, Int32) = match t {
         case Texture(width, height, _) => (width, height)
     }

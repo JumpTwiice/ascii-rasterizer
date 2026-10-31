@@ -1,30 +1,32 @@
 enum Light {
     case Ambient(Float64) // Intensity
-    case Point(Float64, Math.Vec3) // Intensity, position
-    case Directional(Float64, Math.Vec3) // Intensity, direction
+    case Point(Float64, Vec3) // Intensity, position
+    case Directional(Float64, Vec3) // Intensity, direction
 }
 
 mod Light {
-    use Math.Vec3
-    use Math.Vec3.Vec3
-    use Math.Vec4
-    use Math.Mat4x4
+    use Vec3.Vec3
+    use Vec4.Vec4
+    use Mat4x4.Mat4x4
 
     pub def lightingForPoint(p: Vec3, normal: Vec3, camDir: Vec3, specular: Float64, lights: List[Light]): Float64 = {
         let n = Vec3.normalize(normal);
         let v = Vec3.normalize(camDir);
 
-        (0.0, lights) ||> Foldable.foldLeft(acc -> light -> match light {
-            case Ambient(intensity) => acc + intensity
-            case Point(intensity, pos) => {
-                let l = Vec3.normalize(pos - p);
-                acc + diffuseSpec(intensity, n, l, v, specular)
-            }
-            case Directional(intensity, dir) => {
-                let l = Vec3.normalize(dir);
-                acc + diffuseSpec(intensity, n, l, v, specular)
-            }
-        })
+        (0.0, lights)
+            ||> Foldable.foldLeft(
+                acc -> light -> match light {
+                    case Ambient(intensity) => acc + intensity
+                    case Point(intensity, pos) => {
+                        let l = Vec3.normalize(pos - p);
+                        acc + diffuseSpec(intensity, n, l, v, specular)
+                    }
+                    case Directional(intensity, dir) => {
+                        let l = Vec3.normalize(dir);
+                        acc + diffuseSpec(intensity, n, l, v, specular)
+                    }
+                }
+            )
     }
 
     def diffuseSpec(intensity: Float64, n: Vec3, l: Vec3, v: Vec3, specular: Float64): Float64 = {
@@ -36,7 +38,8 @@ mod Light {
                 let r = Vec3.normalize(Vec3.scale(n, 2.0 * ndotl) - l);
                 let rdotv = Vec3.dot(r, v);
                 if (rdotv > 0.0) intensity * Float64.pow(base = rdotv, specular) else 0.0
-            } else 0.0;
+            } else
+                0.0;
 
         diffuse + spec
     }

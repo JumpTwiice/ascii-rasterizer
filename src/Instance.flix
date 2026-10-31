@@ -1,30 +1,30 @@
 struct Instance[r] {
-    model: Model,
-    baseSphere: (Math.Vec3, Float64),
-    mut position: Math.Vec3,
-    mut scale: Math.Vec3,
-    mut rotation: Math.Vec3
+    model:        Model,
+    baseSphere:   (Vec3, Float64),
+    mut position: Vec3,
+    mut scale:    Vec3,
+    mut rotation: Vec3
 }
 
 mod Instance {
-    use Math.{Mat4x4, Vec2, Vec3, Vec4}
-    use Math.Vec4.Vec4
-    use Math.Vec3.Vec3
-    use Math.Vec2.Vec2
+    use Vec2.Vec2
+    use Vec3.Vec3
+    use Vec4.Vec4
+    use Mat4x4.Mat4x4
 
     pub def fromModel(
-        rc: Region[r], 
-        model: Model, 
-        t: { position = Vec3 },
-        r: { rotation = Vec3 },
-        s: { scale = Vec3 }
-    ): Instance[r] \ r =  new Instance @ rc { 
-        model = model, 
+        rc: Region[r],
+        model: Model,
+        t: {position = Vec3},
+        r: {rotation = Vec3},
+        s: {scale = Vec3}
+    ): Instance[r] \ r = new Instance @ rc {
+        model = model,
         baseSphere = Model.boundingSphere(model),
-        scale = s#scale, 
-        rotation = r#rotation, 
-        position = t#position 
-    } 
+        scale = s#scale,
+        rotation = r#rotation,
+        position = t#position
+    }
 
     pub def render(canvas: Canvas[r0], camera: Camera[r1], lights: List[Light], i: Instance[r2]): Unit \ r0 + r1 + r2 = {
         let Model.Model(_, vertices, triangles, specular) = i->model;
@@ -46,7 +46,7 @@ mod Instance {
         let planes = Camera.frustumPlanes(camera);
 
         def clipAll(ps, tris) = match ps {
-            case Nil => tris
+            case Nil       => tris
             case p :: rest => clipAll(rest, clipAgainstPlane(p, tris, boundingSphereCam))
         };
 
@@ -74,16 +74,26 @@ mod Instance {
                         let (x0, y0) = projectVertex(camToCanvas, c0);
                         let (x1, y1) = projectVertex(camToCanvas, c1);
                         let (x2, y2) = projectVertex(camToCanvas, c2);
-                        
+
                         match Options.shadingMode() {
                             case Shading.Flat => {
                                 let centroid = Vec3.scale(c0 + c1 + c2, 0.333);
                                 let h = Light.lightingForPoint(centroid, normal, camPos - centroid, specular, camLights);
                                 Canvas.drawShadedTriangle(
-                                    x0, y0, x1, y1, x2, y2,
-                                    h, h, h,
-                                    1.0 / z0, 1.0 / z1, 1.0 / z2,
-                                    ???, canvas
+                                    x0,
+                                    y0,
+                                    x1,
+                                    y1,
+                                    x2,
+                                    y2,
+                                    h,
+                                    h,
+                                    h,
+                                    1.0 / z0,
+                                    1.0 / z1,
+                                    1.0 / z2,
+                                    ???,
+                                    canvas
                                 )
                             }
                             case Shading.Gouraud => {
@@ -91,19 +101,42 @@ mod Instance {
                                 let h1 = Light.lightingForPoint(c1, cn1, camPos - c1, specular, camLights);
                                 let h2 = Light.lightingForPoint(c2, cn2, camPos - c2, specular, camLights);
                                 Canvas.drawShadedTriangle(
-                                    x0, y0, x1, y1, x2, y2,
-                                    h0, h1, h2,
-                                    1.0 / z0, 1.0 / z1, 1.0 / z2,
-                                    ???, canvas
+                                    x0,
+                                    y0,
+                                    x1,
+                                    y1,
+                                    x2,
+                                    y2,
+                                    h0,
+                                    h1,
+                                    h2,
+                                    1.0 / z0,
+                                    1.0 / z1,
+                                    1.0 / z2,
+                                    ???,
+                                    canvas
                                 )
                             }
                             case Shading.Phong => {
                                 Canvas.drawPhongTriangle(
-                                    x0, y0, x1, y1, x2, y2,
-                                    c0, c1, c2,
-                                    cn0, cn1, cn2,
-                                    cuv0, cuv1, cuv2,
-                                    1.0 / z0, 1.0 / z1, 1.0 / z2,
+                                    x0,
+                                    y0,
+                                    x1,
+                                    y1,
+                                    x2,
+                                    y2,
+                                    c0,
+                                    c1,
+                                    c2,
+                                    cn0,
+                                    cn1,
+                                    cn2,
+                                    cuv0,
+                                    cuv1,
+                                    cuv2,
+                                    1.0 / z0,
+                                    1.0 / z1,
+                                    1.0 / z2,
                                     specular,
                                     camLights,
                                     camPos,
@@ -111,7 +144,7 @@ mod Instance {
                                     canvas
                                 )
                             }
-                        }                            
+                        }
                     }
                 }
             }
@@ -119,7 +152,7 @@ mod Instance {
     }
 
     def clipAgainstPlane(
-        plane: (Vec3, Float64), 
+        plane: (Vec3, Float64),
         triangles: Vector[((Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2))],
         boundingSphere: (Vec3, Float64)
     ): Vector[((Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2), (Vec3, Vec3, Vec2))] = {
@@ -137,22 +170,22 @@ mod Instance {
     def modelMatrix(i: Instance[r]): Mat4x4 \ r = {
         let Vec3(s1, s2, s3) = i->scale;
         let Vec3(r1, r2, r3) = i->rotation;
-        let Vec3(t1, t2, t3) = i->position; 
+        let Vec3(t1, t2, t3) = i->position;
         Mat4x4.translation(t1, t2, t3) * Mat4x4.rotationZ(r3) * Mat4x4.rotationY(r2) * Mat4x4.rotationX(r1) * Mat4x4.scale(s1, s2, s3)
     }
 
-    pub def translate(translation: Vec3, i: Instance[r]): Unit \ r = 
+    pub def translate(translation: Vec3, i: Instance[r]): Unit \ r =
         i->position = i->position + translation
 
-    pub def rotateX(angle: Float64, i: Instance[r]): Unit \ r = 
+    pub def rotateX(angle: Float64, i: Instance[r]): Unit \ r =
         i->rotation = i->rotation + Vec3.Vec3(angle, 0.0, 0.0)
 
-    pub def rotateY(angle: Float64, i: Instance[r]): Unit \ r = 
+    pub def rotateY(angle: Float64, i: Instance[r]): Unit \ r =
         i->rotation = i->rotation + Vec3.Vec3(0.0, angle, 0.0)
-    
-    pub def rotateZ(angle: Float64, i: Instance[r]): Unit \ r = 
+
+    pub def rotateZ(angle: Float64, i: Instance[r]): Unit \ r =
         i->rotation = i->rotation + Vec3.Vec3(0.0, 0.0, angle)
-    
+
     pub def scale(scale: Float64, i: Instance[r]): Unit \ r =
         i->scale = Vec3.scale(i->scale, scale)
 
@@ -169,7 +202,7 @@ mod Instance {
     def cameraToCanvasProjectionMatrix(cam: Camera[r]): Mat4x4 \ r = {
         let (cw, ch) = Options.dimensions();
         let (vw, vh) = Options.viewportDimensions();
-        let f = Int32.toFloat64(vh) / (2.0 * Math.tan(Camera.fovY(cam) / 2.0));
+        let f = Int32.toFloat64(vh) / (2.0 * Trig.tan(Camera.fovY(cam) / 2.0));
         let cwf = Int32.toFloat64(cw);
         let chf = Int32.toFloat64(ch);
         let vwf = Int32.toFloat64(vw);
@@ -178,12 +211,26 @@ mod Instance {
         let chHalf = Int32.toFloat64(ch / 2);
         let sx = f * cwf / vwf;
         let sy = f * chf / vhf;
-        Mat4x4.Mat4x4(Vector#{
-            sx, 0.0, cwHalf, 0.0,
-            0.0, -sy, chHalf, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 1.0, 0.0
-        })
+        Mat4x4.Mat4x4(
+            Vector#{
+                sx,
+                0.0,
+                cwHalf,
+                0.0,
+                0.0,
+                -sy,
+                chHalf,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+            }
+        )
     }
 
     def projectVertex(camToCanvas: Mat4x4, v: Vec3): (Float64, Float64) = {
@@ -211,11 +258,10 @@ mod Instance {
             let uv = Vec2.scale(uva, 1.0 - t) + Vec2.scale(uvb, t);
             (pos, nor, uv)
         };
-        let onlyOnePositive = () -> 
-            (d0 > 0.0 and d1 <= 0.0 and d2 <= 0.0) or
-            (d0 <= 0.0 and d1 > 0.0 and d2 <= 0.0) or
-            (d0 <= 0.0 and d1 <= 0.0 and d2 > 0.0);
-            
+        let onlyOnePositive = () -> (d0 > 0.0 and d1 <= 0.0 and d2 <= 0.0)
+            or (d0 <= 0.0 and d1 > 0.0 and d2 <= 0.0)
+            or (d0 <= 0.0 and d1 <= 0.0 and d2 > 0.0);
+
         if (d0 > 0.0 and d1 > 0.0 and d2 > 0.0) {
             Vector#{triangle}
         } else if (d0 < 0.0 and d1 < 0.0 and d2 < 0.0) {
@@ -254,7 +300,7 @@ mod Instance {
     def signedDistance(plane: (Vec3, Float64), v: Vec3): Float64 = {
         let (Vec3(nx, ny, nz), offset) = plane;
         let Vec3(vx, vy, vz) = v;
-        vx*nx + vy*ny + vz*nz + offset
+        vx * nx + vy * ny + vz * nz + offset
     }
 
 }

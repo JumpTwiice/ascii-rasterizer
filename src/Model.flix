@@ -1,39 +1,52 @@
 enum Model {
     case Model(
         String, // name
-        Vector[Math.Vec3], // vertices
-        Vector[( // triangles
-            Int32, Int32, Int32, // vertex indices
-            Math.Vec3, Math.Vec3, Math.Vec3, // vertex normals
-            Math.Vec2, Math.Vec2, Math.Vec2, // vertex UVs
-            Material
-        )], 
+        Vector[Vec3], // vertices
+        Vector[
+            (
+                // triangles
+                Int32,
+                Int32,
+                Int32, // vertex indices
+                Vec3,
+                Vec3,
+                Vec3, // vertex normals
+                Vec2,
+                Vec2,
+                Vec2, // vertex UVs
+                Material
+            )
+        ],
         Float64 // scale
     )
 }
 
 mod Model {
-    use Math.Vec3
-    use Math.Vec3.Vec3
-    use Math.Vec2
-    use Math.Vec2.Vec2
+    use Vec2.Vec2
+    use Vec3.Vec3
 
     pub def boundingSphere(model: Model): (Vec3, Float64) = match model {
         case Model(_, verts, _, _) => {
             let len = Int32.toFloat64(Vector.length(verts));
             let center = Vector.fold(verts) |> Vec3.divide(len);
-            let radius = verts 
-                |> Vector.map(v -> Vec3.length(v - center)) 
+            let radius = verts
+                |> Vector.map(v -> Vec3.length(v - center))
                 |> Vector.maximum
                 |> Option.getWithDefault(0.0);
             (center, radius)
         }
     }
 
-    pub def cubeWithColor(front: Color, back: Color, top: Color, bot: Color, left: Color, right: Color): Model = 
+    pub def cubeWithColor(front: Color, back: Color, top: Color, bot: Color, left: Color, right: Color): Model =
         let vertices = Vector#{
-            (1.0, 1.0, 1.0), (-1.0, 1.0, 1.0), (-1.0, -1.0, 1.0), (1.0, -1.0, 1.0), 
-            (1.0, 1.0, -1.0), (-1.0, 1.0, -1.0), (-1.0, -1.0, -1.0), (1.0, -1.0, -1.0)
+            (1.0, 1.0, 1.0),
+            (-1.0, 1.0, 1.0),
+            (-1.0, -1.0, 1.0),
+            (1.0, -1.0, 1.0),
+            (1.0, 1.0, -1.0),
+            (-1.0, 1.0, -1.0),
+            (-1.0, -1.0, -1.0),
+            (1.0, -1.0, -1.0)
         };
         let triangles = Vector#{
             // Front face (z = +1)
@@ -55,12 +68,18 @@ mod Model {
             (4, 3, 0, Vec3.right(), Vec3.right(), Vec3.right(), Vec2(0.0, 0.0), Vec2(1.0, 1.0), Vec2(1.0, 0.0), Material.Solid(right)),
             (4, 7, 3, Vec3.right(), Vec3.right(), Vec3.right(), Vec2(1.0, 1.0), Vec2(1.0, 1.0), Vec2(1.0, 0.0), Material.Solid(right))
         };
-        Model.Model("Cube", Vector.map(Math.Vec3.fromTuple, vertices), triangles, 2.0)
+        Model.Model("Cube", Vector.map(Vec3.fromTuple, vertices), triangles, 2.0)
 
-    pub def texturedCube(texture: Texture): Model = 
+    pub def texturedCube(texture: Texture): Model =
         let vertices = Vector#{
-            (1.0, 1.0, 1.0), (-1.0, 1.0, 1.0), (-1.0, -1.0, 1.0), (1.0, -1.0, 1.0), 
-            (1.0, 1.0, -1.0), (-1.0, 1.0, -1.0), (-1.0, -1.0, -1.0), (1.0, -1.0, -1.0)
+            (1.0, 1.0, 1.0),
+            (-1.0, 1.0, 1.0),
+            (-1.0, -1.0, 1.0),
+            (1.0, -1.0, 1.0),
+            (1.0, 1.0, -1.0),
+            (-1.0, 1.0, -1.0),
+            (-1.0, -1.0, -1.0),
+            (1.0, -1.0, -1.0)
         };
         let uv00 = Vec2(0.0, 0.0);
         let uv10 = Vec2(1.0, 0.0);
@@ -86,7 +105,7 @@ mod Model {
             (4, 3, 0, Vec3.right(), Vec3.right(), Vec3.right(), uv00, uv11, uv10, Material.Textured(texture)),
             (4, 7, 3, Vec3.right(), Vec3.right(), Vec3.right(), uv00, uv01, uv11, Material.Textured(texture))
         };
-        Model.Model("TexturedCube", Vector.map(Math.Vec3.fromTuple, vertices), triangles, 5.0)
+        Model.Model("TexturedCube", Vector.map(Vec3.fromTuple, vertices), triangles, 5.0)
 
     pub def sphere(): Model = {
         let color = (220, 220, 220);
@@ -95,16 +114,19 @@ mod Model {
         let slices = 32;
         let step = slices + 1;
 
-        let verts = Vector.init(idx -> {
-            let stack = idx / step;
-            let slice = Int32.modulo(idx, step);
-            let phi = Math.pi() * Int32.toFloat64(stack) / Int32.toFloat64(stacks);
-            let theta = 2.0 * Math.pi() * Int32.toFloat64(slice) / Int32.toFloat64(slices);
-            let x = radius * Math.sin(phi) * Math.cos(theta);
-            let y = radius * Math.cos(phi);
-            let z = radius * Math.sin(phi) * Math.sin(theta);
-            Vec3(x, y, z)
-        }, (stacks + 1) * step);
+        let verts = Vector.init(
+            idx -> {
+                let stack = idx / step;
+                let slice = Int32.modulo(idx, step);
+                let phi = Trig.pi() * Int32.toFloat64(stack) / Int32.toFloat64(stacks);
+                let theta = 2.0 * Trig.pi() * Int32.toFloat64(slice) / Int32.toFloat64(slices);
+                let x = radius * Trig.sin(phi) * Trig.cos(theta);
+                let y = radius * Trig.cos(phi);
+                let z = radius * Trig.sin(phi) * Trig.sin(theta);
+                Vec3(x, y, z)
+            },
+            (stacks + 1) * step
+        );
 
         let triangles = region rc {
             let tris = MutList.empty(rc);

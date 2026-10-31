@@ -1,4 +1,4 @@
-mod Math {
+mod Trig {
     import java.lang.Math
 
     pub def sin(x: Float64): Float64 = unchecked_cast(Math.sin(x) as _ \ {})

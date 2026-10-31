@@ -1,12 +1,11 @@
+use Vec3.Vec3
+
 import java.awt.MouseInfo
-import java.awt.Robot;
-import java.lang.System;
-use Math.Mat4x4
-use Math.Vec3.Vec3
-use Math.Vec3
+import java.awt.Robot
+import java.lang.System
 
 def showTextureImage(): Unit \ IO = region rc {
-    let result = run {
+    run {
         let texture = ImageLoader.readTextureFromFile("crate-texture-raw");
         let (tw, th) = Texture.dimensions(texture);
         let (maxW, maxH) = Options.dimensions();
@@ -25,18 +24,14 @@ def showTextureImage(): Unit \ IO = region rc {
         let canvas = Canvas.empty(rc, w, h);
         Canvas.fillWithTexture(canvas, texture);
         Canvas.display(canvas)
-    } with Console.runWithIO
-    with FileRead.runWithIO;
-    match result {
-        case Ok(_) => ()
-        case Err(_) => ()
-    }
+    } with Sys.Console.runWithIO
+      with Fs.FileRead.runWithIO
 }
 
 def defaultCamera(rc: Region[r], position: Vec3, rotation: Vec3): Camera[r] \ r = {
     let (vw, vh) = Options.viewportDimensions();
     let aspect = Int32.toFloat64(vw) / Int32.toFloat64(vh);
-    let fovY = Math.pi() / 2.0;
+    let fovY = Trig.pi() / 2.0;
     let zNear = Options.zNear();
     Camera.create(
         rc,
@@ -49,23 +44,25 @@ def defaultCamera(rc: Region[r], position: Vec3, rotation: Vec3): Camera[r] \ r 
 }
 
 def main(): Unit \ IO = region rc {
-    let res = run {
+    run {
         let (w, h) = Options.dimensions();
         let canvas = Canvas.empty(rc, w, h);
         let cubeModel = Model.texturedCube(ImageLoader.readTextureFromFile("crate-texture-raw"));
         let cubeInstance = Instance.fromModel(
-            rc, cubeModel, 
+            rc,
+            cubeModel,
             position = Vec3(0.0, 0.0, 2.5),
             rotation = Vec3(0.0, 0.0, 0.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
         let camera = defaultCamera(rc, Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0));
         let secondsToRun = 10i64;
-        let t = Clock.now();
+        let t = Time.Clock.now();
         let dt = 100i64;
         def loop(t0: Int64): Unit = {
-            let t1 = Clock.now();
-            if (t1 - t >= secondsToRun * 1000i64) ()
+            let t1 = Time.Clock.now();
+            if (t1 - t >= secondsToRun * 1000i64)
+                ()
             else if (t1 - t0 >= dt) {
                 Instance.rotateX(0.1, cubeInstance);
                 Instance.rotateY(0.1, cubeInstance);
@@ -74,16 +71,13 @@ def main(): Unit \ IO = region rc {
                 Canvas.display(canvas);
                 Canvas.flush(canvas);
                 loop(t1)
-            } else loop(t0)
+            } else
+                loop(t0)
         };
         loop(0i64)
-    } with Console.runWithIO
-    with Clock.runWithIO
-    with FileRead.runWithIO;
-    match res {
-        case Ok(_) => ()
-        case Err(_) => ()
-    }
+    } with Sys.Console.runWithIO
+      with Time.Clock.runWithIO
+      with Fs.FileRead.runWithIO
 }
 
 def movingLights(): Unit \ IO = region rc {
@@ -99,7 +93,8 @@ def movingLights(): Unit \ IO = region rc {
             (255, 255, 0)
         );
         let cubeInstance = Instance.fromModel(
-            rc, cubeModel, 
+            rc,
+            cubeModel,
             position = Vec3(0.0, 0.0, 2.5),
             rotation = Vec3(0.0, 0.0, 0.0),
             scale = Vec3(1.0, 1.0, 1.0)
@@ -107,31 +102,36 @@ def movingLights(): Unit \ IO = region rc {
         let lights0 = Options.lights();
         let camera = defaultCamera(rc, Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 0.0));
         let secondsToRun = 5i64;
-        let t = Clock.now();
-         let dt = 100i64;
-         def loop(t0, lights) = {
-             let t1 = Clock.now();
-             if (t1 - t >= secondsToRun * 1000i64) ()
-             else if (t1 - t0 >= dt) {
-                 let newLights = List.map(l -> match l {
-                     case Light.Point(intensity, Vec3(_, y, _)) => 
-                         let angle = 0.1 * Int64.toFloat64(t1 / 100i64);
-                         let newX = 2.0 * Math.cos(angle);
-                         let newZ = 2.0 * Math.sin(angle);
-                         Light.Point(intensity, Vec3(newX, y, newZ))
-                    case _ => l
-                 }, lights);
+        let t = Time.Clock.now();
+        let dt = 100i64;
+        def loop(t0, lights) = {
+            let t1 = Time.Clock.now();
+            if (t1 - t >= secondsToRun * 1000i64)
+                ()
+            else if (t1 - t0 >= dt) {
+                let newLights = List.map(
+                    l -> match l {
+                        case Light.Point(intensity, Vec3(_, y, _)) =>
+                            let angle = 0.1 * Int64.toFloat64(t1 / 100i64);
+                            let newX = 2.0 * Trig.cos(angle);
+                            let newZ = 2.0 * Trig.sin(angle);
+                            Light.Point(intensity, Vec3(newX, y, newZ))
+                        case _ => l
+                    },
+                    lights
+                );
                 let lightIndicators = lightIndicatorInstances(rc, newLights);
                 Instance.render(canvas, camera, newLights, cubeInstance);
                 renderInstances(canvas, camera, newLights, lightIndicators);
                 Canvas.display(canvas);
                 Canvas.flush(canvas);
                 loop(t1, newLights)
-             } else loop(t0, lights)
-         };
+            } else
+                loop(t0, lights)
+        };
         loop(0i64, lights0)
-    } with Console.runWithIO
-    with Clock.runWithIO
+    } with Sys.Console.runWithIO
+      with Time.Clock.runWithIO
 }
 
 def movingCam(): Unit \ IO = region rc {
@@ -147,7 +147,8 @@ def movingCam(): Unit \ IO = region rc {
             (255, 255, 0)
         );
         let cubeInstance = Instance.fromModel(
-            rc, cubeModel, 
+            rc,
+            cubeModel,
             position = Vec3(0.0, 0.0, 2.5),
             rotation = Vec3(0.0, 0.0, 0.0),
             scale = Vec3(1.0, 1.0, 1.0)
@@ -155,11 +156,12 @@ def movingCam(): Unit \ IO = region rc {
         let lightIndicators = lightIndicatorInstances(rc, Options.lights());
         let camera = defaultCamera(rc, Vec3(-3.0, 0.0, 0.0), Vec3(0.0, -0.7, 0.0));
         let secondsToRun = 5i64;
-        let t = Clock.now();
+        let t = Time.Clock.now();
         let dt = 100i64;
         def loop(t0: Int64): Unit = {
-            let t1 = Clock.now();
-            if (t1 - t >= secondsToRun * 1000i64) ()
+            let t1 = Time.Clock.now();
+            if (t1 - t >= secondsToRun * 1000i64)
+                ()
             else if (t1 - t0 >= dt) {
                 Camera.translate(Vec3(0.1, 0.0, 0.0), camera);
                 Camera.rotateY(0.02, camera);
@@ -168,11 +170,12 @@ def movingCam(): Unit \ IO = region rc {
                 Canvas.display(canvas);
                 Canvas.flush(canvas);
                 loop(t1)
-            } else loop(t0)
+            } else
+                loop(t0)
         };
         loop(0i64)
-    } with Console.runWithIO
-    with Clock.runWithIO
+    } with Sys.Console.runWithIO
+      with Time.Clock.runWithIO
 }
 
 def cubeStatic(): Unit \ IO = region rc {
@@ -181,7 +184,8 @@ def cubeStatic(): Unit \ IO = region rc {
         let canvas = Canvas.empty(rc, w, h);
         let cubeModel = Model.texturedCube(ImageLoader.loadCheckerboardTexture(64, 64, 8));
         let cubeInstance = Instance.fromModel(
-            rc, cubeModel, 
+            rc,
+            cubeModel,
             position = Vec3(0.0, 0.0, 2.5),
             rotation = Vec3(0.0, 0.0, 0.0),
             scale = Vec3(1.0, 1.0, 1.0)
@@ -191,10 +195,8 @@ def cubeStatic(): Unit \ IO = region rc {
         Instance.render(canvas, camera, Options.lights(), cubeInstance);
         renderInstances(canvas, camera, Options.lights(), lightIndicators);
         Canvas.display(canvas)
-
-    } with Console.runWithIO
+    } with Sys.Console.runWithIO
 }
-
 
 def main2(): Unit \ IO = region rc {
     run {
@@ -209,13 +211,15 @@ def main2(): Unit \ IO = region rc {
             (255, 255, 0)
         );
         let cube1 = Instance.fromModel(
-            rc, cubeModel, 
+            rc,
+            cubeModel,
             position = Vec3(0.0, 0.0, 2.0),
             rotation = Vec3(3.0, 2.0, 1.0),
             scale = Vec3(1.0, 1.0, 1.0)
         );
         let cube2 = Instance.fromModel(
-            rc, cubeModel, 
+            rc,
+            cubeModel,
             position = Vec3(6.0, 0.0, 0.0),
             rotation = Vec3(1.0, 2.0, 3.0),
             scale = Vec3(1.0, 1.0, 1.0)
@@ -227,7 +231,7 @@ def main2(): Unit \ IO = region rc {
         let dt = 50i64;
 
         def loop(oldPointer, t0) = {
-            let t1 = Clock.now();
+            let t1 = Time.Clock.now();
             if (t1 - t0 >= dt) {
                 let pointer = MouseInfo.getPointerInfo();
                 let pos = pointer.getLocation();
@@ -241,13 +245,15 @@ def main2(): Unit \ IO = region rc {
                     renderInstances(canvas, camera, Options.lights(), lightIndicators);
                     Canvas.display(canvas);
                     Canvas.flush(canvas)
-                } else ();
+                } else
+                    ();
                 loop(pointer, t1)
-            } else loop(oldPointer, t0)
+            } else
+                loop(oldPointer, t0)
         };
         loop(MouseInfo.getPointerInfo(), 0i64)
-    } with Console.runWithIO
-    with Clock.runWithIO
+    } with Sys.Console.runWithIO
+      with Time.Clock.runWithIO
 }
 
 def renderInstances(canvas: Canvas[r0], camera: Camera[r1], lights: List[Light], instances: List[Instance[r2]]): Unit \ r0 + r1 + r2 = {
@@ -259,9 +265,10 @@ def lightIndicatorInstances(rc: Region[r], lights: List[Light]): List[Instance[r
     let lightModel = Model.sphere();
     def loop(ls, acc): List[Instance[r]] \ r = match ls {
         case Nil => acc
-        case Light.Point(_, pos) :: rest => 
+        case Light.Point(_, pos) :: rest =>
             let inst = Instance.fromModel(
-                rc, lightModel,
+                rc,
+                lightModel,
                 position = pos,
                 rotation = Vec3.zero(),
                 scale = Vec3(0.1, 0.1, 0.1)

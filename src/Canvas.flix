@@ -1,26 +1,25 @@
 struct Canvas[r: Region] {
-    width: Int32,
-    height: Int32,
-    mut raster: Canvas.Buffer[Int32, r],
+    width:       Int32,
+    height:      Int32,
+    mut raster:  Canvas.Buffer[Int32, r],
     mut zBuffer: Canvas.Buffer[Float64, r],
-    rc: Region[r]
+    rc:          Region[r]
 }
 
 mod Canvas {
-    use Math.{Vec2, Vec3}
-    use Math.Vec2.Vec2
-    use Math.Vec3.Vec3
+    use Vec2.Vec2
+    use Vec3.Vec3
     pub type alias Buffer[v: Type, r: Region] = Array[Array[v, r], r]
 
     pub def dimensions(c: Canvas[r]): (Int32, Int32) = (c->width, c->height)
 
     pub def empty(rc: Region[r], w: Int32, h: Int32): Canvas[r] \ r =
-        new Canvas @ rc { 
-            width = w, 
-            height = h, 
-            raster = mkBuffer(rc, w, h, 0), 
-            zBuffer = mkBuffer(rc, w, h, LowerBound.minValue()), 
-            rc = rc 
+        new Canvas @ rc {
+            width = w,
+            height = h,
+            raster = mkBuffer(rc, w, h, 0),
+            zBuffer = mkBuffer(rc, w, h, LowerBound.minValue()),
+            rc = rc
         }
 
     pub def fillWithTexture(c: Canvas[r], t: Texture): Unit \ r = {
@@ -36,11 +35,11 @@ mod Canvas {
         }
     }
 
-    pub def display(c: Canvas[r]): Unit \ Console + r = 
+    pub def display(c: Canvas[r]): Unit \ Sys.Console + r =
         if (Options.asciiMode())
-            getASCIITerminalFrame(c) |> Console.println
+            getASCIITerminalFrame(c) |> Sys.Console.println
         else
-            getTerminalFrame(c) |> Console.println
+            getTerminalFrame(c) |> Sys.Console.println
 
     pub def flush(c: Canvas[r]): Unit \ r = {
         foreach (
@@ -52,7 +51,7 @@ mod Canvas {
         }
     }
 
-    def mkBuffer(rc: Region[r], w: Int32, h: Int32, v: v): Buffer[v, r] \ r  = 
+    def mkBuffer(rc: Region[r], w: Int32, h: Int32, v: v): Buffer[v, r] \ r =
         Array.init(rc, _ -> Array.repeat(rc, w, v), h)
 
     def getTerminalFrame(c: Canvas[r]): String \ r = region rc {
@@ -65,14 +64,17 @@ mod Canvas {
             let yBot = yTop + 1;
 
             let rowVec =
-                Vector.init(x -> {
-                    let top = getValueAt(yTop, x, c->raster);
-                    let bot = getValueAt(yBot, x, c->raster);
-                    RichString.text("▀")
-                        |> RichString.withColor(unpackRGBRich(top))
-                        |> RichString.withBgColor(unpackRGBRich(bot))
-                        |> RichString.toString
-                }, width);
+                Vector.init(
+                    x -> {
+                        let top = getValueAt(yTop, x, c->raster);
+                        let bot = getValueAt(yBot, x, c->raster);
+                        RichString.text("▀")
+                            |> RichString.withColor(unpackRGBRich(top))
+                            |> RichString.withBgColor(unpackRGBRich(bot))
+                            |> RichString.toString
+                    },
+                    width
+                );
 
             Array.put(Vector.join("", rowVec), i2, frameRows)
         };
@@ -84,12 +86,15 @@ mod Canvas {
         let frameRows = Array.empty(rc, c->height);
         foreach (i <- Range.Range(0, c->height)) {
             let rowVec =
-                Vector.init(j -> {
-                    let color = getValueAt(i, j, c->raster);
-                    let (r, g, b) = unpackRGB(color);
-                    let gray = grayScaleFromRGB(r, g, b);
-                    asciiFromGrayScale(gray)
-                }, c->width);
+                Vector.init(
+                    j -> {
+                        let color = getValueAt(i, j, c->raster);
+                        let (r, g, b) = unpackRGB(color);
+                        let gray = grayScaleFromRGB(r, g, b);
+                        asciiFromGrayScale(gray)
+                    },
+                    c->width
+                );
 
             Array.put(Vector.join("", rowVec), i, frameRows)
         };
@@ -102,14 +107,14 @@ mod Canvas {
         Options.asciiChars() |> String.charAt(idx)
     }
 
-    def grayScaleFromRGB(r: Int32, g: Int32, b: Int32): Float64 = 
+    def grayScaleFromRGB(r: Int32, g: Int32, b: Int32): Float64 =
         (0.299 * Int32.toFloat64(r)) + (0.587 * Int32.toFloat64(g)) + (0.114 * Int32.toFloat64(b))
 
     def unpackRGBRich(color: Int32): RichString.Color = {
         let (r, g, b) = unpackRGB(color);
         RichString.Color.Rgb(r, g, b)
     }
-        
+
     pub def drawTriangle(x0: Int32, y0: Int32, x1: Int32, y1: Int32, x2: Int32, y2: Int32, color: (Int32, Int32, Int32), c: Canvas[r]): Unit \ r = {
         drawLine(x0, y0, x1, y1, color, c);
         drawLine(x1, y1, x2, y2, color, c);
@@ -120,7 +125,7 @@ mod Canvas {
         let points = List#{(x0, y0), (x1, y1), (x2, y2)} |> List.sortBy(snd);
         let ((ax0, ay0), (ax1, ay1), (ax2, ay2)) = match points {
             case top :: mid :: bot :: Nil => (top, mid, bot)
-            case _ => unreachable!()
+            case _                        => unreachable!()
         };
         let x01 = interpolate(ay0, ax0, ay1, ax1);
         let x12 = interpolate(ay1, ax1, ay2, ax2);
@@ -141,18 +146,21 @@ mod Canvas {
 
     def ceilToInt32(v: Float64): Int32 = match Float64.ceil(v) |> Float64.tryToInt32 {
         case Some(i) => i
-        case None => unreachable!()
+        case None    => unreachable!()
     }
 
     def floorToInt32(v: Float64): Int32 = match Float64.floor(v) |> Float64.tryToInt32 {
         case Some(i) => i
-        case None => unreachable!()
+        case None    => unreachable!()
     }
 
     def boundingBox(
-        x0: Float64, y0: Float64, 
-        x1: Float64, y1: Float64, 
-        x2: Float64, y2: Float64, 
+        x0: Float64,
+        y0: Float64,
+        x1: Float64,
+        y1: Float64,
+        x2: Float64,
+        y2: Float64,
         c: Canvas[r]
     ): (Int32, Int32, Int32, Int32) = {
         let minXf = Float64.min(x0, Float64.min(x1, x2));
@@ -173,10 +181,14 @@ mod Canvas {
     }
 
     def barycentricEdgeValues(
-        px: Float64, py: Float64, 
-        x0: Float64, y0: Float64, 
-        x1: Float64, y1: Float64, 
-        x2: Float64, y2: Float64
+        px: Float64,
+        py: Float64,
+        x0: Float64,
+        y0: Float64,
+        x1: Float64,
+        y1: Float64,
+        x2: Float64,
+        y2: Float64
     ): (Float64, Float64, Float64) = {
         let w0e = edgeFunction(x1, y1, x2, y2, px, py);
         let w1e = edgeFunction(x2, y2, x0, y0, px, py);
@@ -185,17 +197,23 @@ mod Canvas {
     }
 
     def insideTriangle(w0e: Float64, w1e: Float64, w2e: Float64, tl01: Bool, tl12: Bool, tl20: Bool): Bool =
-        (w0e > 0.0 or (w0e == 0.0 and tl12)) and
-        (w1e > 0.0 or (w1e == 0.0 and tl20)) and
-        (w2e > 0.0 or (w2e == 0.0 and tl01))
+        (w0e > 0.0 or (w0e == 0.0 and tl12))
+            and (w1e > 0.0 or (w1e == 0.0 and tl20))
+            and (w2e > 0.0 or (w2e == 0.0 and tl01))
 
     def barycentricWeights(w0e: Float64, w1e: Float64, w2e: Float64, invArea: Float64): (Float64, Float64, Float64) =
         (w0e * invArea, w1e * invArea, w2e * invArea)
 
     def perspectiveHeight(
-        w0: Float64, w1: Float64, w2: Float64, 
-        h0: Float64, h1: Float64, h2: Float64, 
-        invZ0: Float64, invZ1: Float64, invZ2: Float64
+        w0: Float64,
+        w1: Float64,
+        w2: Float64,
+        h0: Float64,
+        h1: Float64,
+        h2: Float64,
+        invZ0: Float64,
+        invZ1: Float64,
+        invZ2: Float64
     ): (Float64, Float64) = {
         let invZ = w0 * invZ0 + w1 * invZ1 + w2 * invZ2;
         let hOverZ = w0 * (h0 * invZ0) + w1 * (h1 * invZ1) + w2 * (h2 * invZ2);
@@ -209,11 +227,18 @@ mod Canvas {
     }
 
     pub def drawShadedTriangle(
-        x0: Float64, y0: Float64,
-        x1: Float64, y1: Float64,
-        x2: Float64, y2: Float64,
-        h0: Float64, h1: Float64, h2: Float64,
-        invZ0: Float64, invZ1: Float64, invZ2: Float64,
+        x0: Float64,
+        y0: Float64,
+        x1: Float64,
+        y1: Float64,
+        x2: Float64,
+        y2: Float64,
+        h0: Float64,
+        h1: Float64,
+        h2: Float64,
+        invZ0: Float64,
+        invZ1: Float64,
+        invZ2: Float64,
         color: (Int32, Int32, Int32),
         c: Canvas[r]
     ): Unit \ r = {
@@ -245,20 +270,31 @@ mod Canvas {
                             drawPoint(x, y, sh, c);
                             putZValue(x, y, invZ, c)
                         }
-                    } 
+                    }
                 }
             }
         }
     }
 
     pub def drawPhongTriangle(
-        x0: Float64, y0: Float64,
-        x1: Float64, y1: Float64,
-        x2: Float64, y2: Float64,
-        p0: Vec3, p1: Vec3, p2: Vec3,
-        n0: Vec3, n1: Vec3, n2: Vec3,
-        uv0: Vec2, uv1: Vec2, uv2: Vec2,
-        invZ0: Float64, invZ1: Float64, invZ2: Float64,
+        x0: Float64,
+        y0: Float64,
+        x1: Float64,
+        y1: Float64,
+        x2: Float64,
+        y2: Float64,
+        p0: Vec3,
+        p1: Vec3,
+        p2: Vec3,
+        n0: Vec3,
+        n1: Vec3,
+        n2: Vec3,
+        uv0: Vec2,
+        uv1: Vec2,
+        uv2: Vec2,
+        invZ0: Float64,
+        invZ1: Float64,
+        invZ2: Float64,
         specular: Float64,
         lights: List[Light],
         camPos: Vec3,
@@ -306,14 +342,14 @@ mod Canvas {
                             drawPoint(x, y, sh, c);
                             putZValue(x, y, invZ, c)
                         }
-                    } 
+                    }
                 }
             }
         }
     }
 
     pub def drawLine(x0: Int32, y0: Int32, x1: Int32, y1: Int32, color: (Int32, Int32, Int32), c: Canvas[r]): Unit \ r = {
-        let isSteep = Int32.abs(y1 - y0) > Int32.abs(x1- x0);
+        let isSteep = Int32.abs(y1 - y0) > Int32.abs(x1 - x0);
 
         let (ax0, ay0, ax1, ay1) = if (isSteep) (y0, x0, y1, x1) else (x0, y0, x1, y1);
         let (sx0, sy0, sx1, sy1) = if (ax0 > ax1) (ax1, ay1, ax0, ay0) else (ax0, ay0, ax1, ay1);
@@ -322,83 +358,92 @@ mod Canvas {
 
         foreach (x <- Range.Range(sx0, sx1 + 1)) {
             let y = Vector.get(x - sx0, ys);
-            if (isSteep) 
+            if (isSteep)
                 drawPoint(y, x, color, c)
             else
                 drawPoint(x, y, color, c)
         }
     }
-        
+
     pub def drawPoint(x: Int32, y: Int32, color: (Int32, Int32, Int32), c: Canvas[r]): Unit \ r = {
         let xBounded = 0 <= x and x < c->width;
         let yBounded = 0 <= y and y < c->height;
-        if (xBounded and yBounded) 
+        if (xBounded and yBounded)
             putValueAt(y, x, packRGB(color), c->raster)
-        else ()
+        else
+            ()
     }
 
     pub def putZValue(x: Int32, y: Int32, z: Float64, c: Canvas[r]): Unit \ r = {
         let xBounded = 0 <= x and x < c->width;
         let yBounded = 0 <= y and y < c->height;
-        if (xBounded and yBounded) 
+        if (xBounded and yBounded)
             Array.get(y, c->zBuffer) |> Array.put(z, x)
-        else ()
+        else
+            ()
     }
 
-    def getZAtPoint(x: Int32, y: Int32, c: Canvas[r]): Float64 \ r = 
+    def getZAtPoint(x: Int32, y: Int32, c: Canvas[r]): Float64 \ r =
         let xBounded = 0 <= x and x < c->width;
         let yBounded = 0 <= y and y < c->height;
-        if (xBounded and yBounded) 
+        if (xBounded and yBounded)
             Array.get(y, c->zBuffer) |> Array.get(x)
-        else UpperBound.maxValue()
+        else
+            UpperBound.maxValue()
 
     pub def interpolate(i0: Int32, d0: Int32, i1: Int32, d1: Int32): Vector[Int32] = {
         if (i0 == i1) {
             Vector#{d0}
-        } else region rc {
-            let a = (Int32.toFloat64(d1) - Int32.toFloat64(d0)) / (Int32.toFloat64(i1) - Int32.toFloat64(i0));
-            let l = MutList.empty(rc);
-            def loop(i, d) = {
-                if (i <= i1) match Float64.floor(d) |> Float64.tryToInt32 {
-                    case Some(v) => 
-                        MutList.push(v, l);
-                        loop(i + 1, d + a)
-                    case None => unreachable!()
-                } else ()
-            };
-            loop(i0, Int32.toFloat64(d0));
-            MutList.toVector(l)
-        }
+        } else
+            region rc {
+                let a = (Int32.toFloat64(d1) - Int32.toFloat64(d0)) / (Int32.toFloat64(i1) - Int32.toFloat64(i0));
+                let l = MutList.empty(rc);
+                def loop(i, d) = {
+                    if (i <= i1)
+                        match Float64.floor(d) |> Float64.tryToInt32 {
+                            case Some(v) =>
+                                MutList.push(v, l);
+                                loop(i + 1, d + a)
+                            case None => unreachable!()
+                        }
+                    else
+                        ()
+                };
+                loop(i0, Int32.toFloat64(d0));
+                MutList.toVector(l)
+            }
     }
 
     pub def interpolateSmooth(i0: Int32, d0: Float64, i1: Int32, d1: Float64): Vector[Float64] = {
         if (i0 == i1) {
             Vector#{d0}
-        } else region rc {
-            let a = (d1 - d0) / (Int32.toFloat64(i1) - Int32.toFloat64(i0));
-            let l = MutList.empty(rc);
-            def loop(i, d) = {
-                if (i <= i1) {
-                    MutList.push(d, l);
-                    loop(i + 1, d + a)
-                } else ()
-            };
-            loop(i0, d0);
-            MutList.toVector(l)
-        }
+        } else
+            region rc {
+                let a = (d1 - d0) / (Int32.toFloat64(i1) - Int32.toFloat64(i0));
+                let l = MutList.empty(rc);
+                def loop(i, d) = {
+                    if (i <= i1) {
+                        MutList.push(d, l);
+                        loop(i + 1, d + a)
+                    } else
+                        ()
+                };
+                loop(i0, d0);
+                MutList.toVector(l)
+            }
     }
 
-    def getValueAt(i: Int32, j: Int32, raster: Buffer[v, r]): v \ r = 
+    def getValueAt(i: Int32, j: Int32, raster: Buffer[v, r]): v \ r =
         Array.get(i, raster) |> Array.get(j)
 
-    def putValueAt(i: Int32, j: Int32, v: v, raster: Buffer[v, r]): Unit \ r = 
+    def putValueAt(i: Int32, j: Int32, v: v, raster: Buffer[v, r]): Unit \ r =
         Array.get(i, raster) |> Array.put(v, j)
 
     def <<(x: Int32, y: Int32): Int32 = Int32.leftShift(x, y)
 
     def >>(x: Int32, y: Int32): Int32 = Int32.rightShift(x, y)
 
-    def packRGB(color: (Int32, Int32, Int32)): Int32 = 
+    def packRGB(color: (Int32, Int32, Int32)): Int32 =
         let (r, g, b) = color;
         Int32.bitwiseOr(r << 16, Int32.bitwiseOr(g << 8, b))
 
@@ -412,6 +457,5 @@ mod Canvas {
         let (r, g, b) = color;
         let f = Int32.toFloat64;
         (f(r), f(g), f(b))
-
 
 }
